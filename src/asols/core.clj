@@ -2,7 +2,8 @@
   (:gen-class :main true)
   (:require [asols.trainer :as trainer]
             [asols.network :as network]
-            [asols.mutations :as mutations]))
+            [asols.mutations :as mutations]
+            [asols.report :as report]))
 
 (def dataset
   [[[0 0] [0]]
@@ -57,8 +58,7 @@
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (let [network (init-network)
-        learned (trainer/learn network dataset 100)]
-    (prn learned)
-    (prn (trainer/calc-error network dataset))))
+  (let [base-network (init-network)
+        trained-network (trainer/learn base-network dataset 100)]
+    (report/create "index.html")))
 
