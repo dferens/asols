@@ -2,12 +2,6 @@
   (:require [asols.network :as network]))
 
 
-(def dataset
-  [[[0 0] [0]]
-   [[1 1] [0]]
-   [[1 0] [1]]
-   [[0 1] [1]]])
-
 (defn get-test-error
   "Returns error value on test data for given network"
   [network]
@@ -40,7 +34,7 @@
             (assoc values node (calc-node-value net node values)))
           result
           layer-nodes))
-      (zipmap (network/input-layer net) input-vector)
+      (zipmap (:input-layer net) input-vector)
       (rest (network/layers net)))))
 
 (defn- calc-output-deltas
@@ -54,7 +48,7 @@
         (* (* -1 predicted)
            (- 1 predicted)
            (- actual predicted))))
-    (network/output-layer net)))
+    (:output-layer net)))
 
 (defn calc-node-deltas
   [deltas net nodes-values node]
@@ -86,7 +80,7 @@
     (reduce
       (fn [deltas layer]
         (calc-layer-deltas deltas net nodes-values layer))
-      (zipmap (network/output-layer net) output-deltas)
+      (zipmap (:output-layer net) output-deltas)
       (reverse layers-to-process))))
 
 (defn modify-weights
@@ -98,7 +92,7 @@
             new-weight (- weight delta-weight)]
         (network/set-weight net edge new-weight)))
     net
-    (network/edges net)))
+    (:edges net)))
 
 (defn learn-on-vector
   "Learns network on given data vector, returns new network"
@@ -112,32 +106,11 @@
 
    Keyword arguments:
      :learning-rate (0...1) - how fast network trains"
-  [net iterations & {:keys [learning-rate]
-                     :or {learning-rate 0.1}}]
+  [net dataset iterations & {:keys [learning-rate]
+                             :or {learning-rate 0.1}}]
   (reduce
     #(learn-on-vector %1 %2 learning-rate)
     net
     (for [_ (range iterations)
           training-example dataset]
       training-example)))
-
-(def test-net
-  (let [net (-> (network/network 2 1)
-                (network/add-layer)
-                (network/add-node 0)
-                (network/add-node 0)
-                (network/add-node 0))
-        [i1 i2] (network/input-layer net)
-        [h1 h2 h3] (seq (first (network/hidden-layers net)))
-        [o1] (network/output-layer net)]
-    (-> net
-        (network/add-edge i1 h1)
-        (network/add-edge i1 h2)
-        (network/add-edge i1 h3)
-        (network/add-edge i2 h1)
-        (network/add-edge i2 h2)
-        (network/add-edge i2 h3)
-
-        (network/add-edge h1 o1)
-        (network/add-edge h2 o1)
-        (network/add-edge h3 o1))))

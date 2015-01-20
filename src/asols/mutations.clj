@@ -15,4 +15,4 @@
    [[:added-node #<Network 1>]
     [:added-layer #<Network 2>] ... ]"
   [network]
-  nil)
+  [(->Mutation :added-node network)])

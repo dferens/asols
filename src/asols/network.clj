@@ -1,14 +1,8 @@
 (ns asols.network
   (:require [asols.utils :refer [convert-base]]))
 
-
 (def ^:private alphabet (map char (range 97 123)))
 (def ^:private last-node-id (atom -1))
-
-(defn- rand-weight []
-  (dec (rand 2)))
-
-(defn- rand-weight [] (rand))
 
 (defn- node
   "Creates new node:
@@ -20,6 +14,7 @@
          (apply str)
          (keyword))))
 
+(defn- rand-weight [] (rand))
 
 (defn- edge-layer
   []
@@ -30,41 +25,45 @@
   []
   #{})
 
+(defprotocol NetworkProtocol
+  (layers
+    [this]
+    "Returns collection of network layers where first one is input and last one
+    is output layers")
+  (in-edges [this node])
+  (out-edges [this node])
+  (get-weight
+    [this edge]
+    "Returns weight of given edge"))
+
+(defrecord Network [input-layer output-layer hidden-layers edges]
+  NetworkProtocol
+  (layers [_]
+    (concat
+      [input-layer]
+      hidden-layers
+      [output-layer]))
+  (in-edges [_ node]
+    (for [edge (keys edges)
+          :let [[_ node-to] edge]
+          :when (= node-to node)]
+      edge))
+  (out-edges [_ node]
+    (for [edge (keys edges)
+          :let [[node-from _] edge]
+          :when (= node-from node)]
+      edge))
+  (get-weight [_ edge]
+    (edges edge)))
+
 (defn network
   "Creates new network"
   [input-count output-count]
-  {:input-layer (into (edge-layer) (repeatedly input-count node))
-   :output-layer (into (edge-layer) (repeatedly output-count node))
-   :hidden-layers []})
-
-(defn layers
-  "Returns collection of network layers where first one is input and last one
-  is output layers"
-  [network]
-  (concat
-    [(:input-layer network)]
-    (:hidden-layers network)
-    [(:output-layer network)]))
-
-(defn input-layer [network] (:input-layer network))
-(defn hidden-layers [network] (:hidden-layers network))
-(defn output-layer [network] (:output-layer network))
-
-(defn edges [network] (:edges network))
-
-(defn in-edges
-  [network node]
-  (for [edge (keys (:edges network))
-        :let [[_ node-to] edge]
-        :when (= node-to node)]
-    edge))
-
-(defn out-edges
-  [network node]
-  (for [edge (keys (:edges network))
-        :let [[node-from _] edge]
-        :when (= node-from node)]
-    edge))
+  (->Network
+    (into (edge-layer) (repeatedly input-count node))
+    (into (edge-layer) (repeatedly output-count node))
+    []
+    {}))
 
 (defn add-layer
   "Adds new hidden layer to network, returns new network"
@@ -85,11 +84,6 @@
   "Adds new edge to network, returns new network"
   [network node-from node-to]
   (update-in network [:edges] assoc [node-from node-to] (rand-weight)))
-
-(defn get-weight
-  "Returns weight of given edge"
-  [network edge]
-  (get-in network [:edges edge]))
 
 (defn set-weight
   "Sets new weight for given edge, returns new network"
