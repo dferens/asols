@@ -1,12 +1,6 @@
 (ns asols.trainer
   (:require [asols.network :as network]))
 
-
-(defn get-test-error
-  "Returns error value on test data for given network"
-  [network]
-  1.0)
-
 (defn activation-fn
   "Sigmoid activation function"
   [x]
@@ -16,7 +10,7 @@
   "Calculates node output value"
   [net node nodes-values]
   (activation-fn
-    (apply +
+    (reduce +
       (map
         (fn [[node-from _ :as edge]]
           (* (nodes-values node-from)
@@ -25,17 +19,16 @@
 
 (defn activate
   "Calculates nodes outputs on given data vector, returns map of values"
-  [net data-vector]
-  (let [[input-vector _] data-vector]
-    (reduce
-      (fn [result layer-nodes]
-        (reduce
-          (fn [values node]
-            (assoc values node (calc-node-value net node values)))
-          result
-          layer-nodes))
-      (zipmap (:input-layer net) input-vector)
-      (rest (network/layers net)))))
+  [net input-vector]
+  (reduce
+    (fn [result layer-nodes]
+      (reduce
+        (fn [values node]
+          (assoc values node (calc-node-value net node values)))
+        result
+        layer-nodes))
+    (zipmap (:input-layer net) input-vector)
+    (rest (network/layers net))))
 
 (defn- calc-output-deltas
   "Calculates deltas of output layer, returns collection of deltas"
@@ -56,7 +49,7 @@
         out-edges (network/out-edges net node)]
     (* predicted
        (- 1 predicted)
-       (apply +
+       (reduce +
          (map
            (fn [[_ node-to :as edge]]
              (* (deltas node-to)
@@ -97,7 +90,7 @@
 (defn learn-on-vector
   "Learns network on given data vector, returns new network"
   [net data-vector learning-rate]
-  (let [nodes-values (activate net data-vector)
+  (let [nodes-values (activate net (first data-vector))
         deltas (calc-deltas net nodes-values data-vector)]
     (modify-weights net nodes-values deltas learning-rate)))
 
@@ -114,3 +107,19 @@
     (for [_ (range iterations)
           training-example dataset]
       training-example)))
+
+(defn calc-error-on-vector
+  "Returns error value on given data vector for given network"
+  [net [input-vector expected-output]]
+  (let [nodes-values (activate net input-vector)
+        predicted-output (mapv nodes-values (:output-layer net))
+        square (fn [x] (* x x))]
+    (* 0.5
+      (reduce +
+        (map (comp square -) expected-output predicted-output)))))
+
+(defn calc-error
+  "Returns total error on given dataset for given network"
+  [net dataset]
+  (/ (reduce + (map #(calc-error-on-vector net %) dataset))
+     (count dataset)))

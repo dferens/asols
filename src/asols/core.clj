@@ -40,7 +40,7 @@
     (fn [errors mutation]
       (let [error (-> (mutations/get-network mutation)
                       (trainer/learn dataset 100 :learning-rate 0.2)
-                      (trainer/get-test-error))]
+                      (trainer/calc-error dataset))]
         (assoc errors mutation error)))
     {}
     (mutations/get-mutations network)))
@@ -59,5 +59,6 @@
   [& args]
   (let [network (init-network)
         learned (trainer/learn network dataset 100)]
-    (prn learned)))
+    (prn learned)
+    (prn (trainer/calc-error network dataset))))
 
