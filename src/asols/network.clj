@@ -32,6 +32,7 @@
     is output layers")
   (in-edges [this node])
   (out-edges [this node])
+  (has-edge? [this node-from node-to])
   (get-weight
     [this edge]
     "Returns weight of given edge"))
@@ -53,6 +54,8 @@
           :let [[node-from _] edge]
           :when (= node-from node)]
       edge))
+  (has-edge? [_ node-from node-to]
+    (contains? edges [node-from node-to]))
   (get-weight [_ edge]
     (edges edge)))
 

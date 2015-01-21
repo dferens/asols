@@ -38,7 +38,7 @@
       (let [predicted (nodes-values output-node)
             [_ out-vector] data-vector
             actual (nth out-vector node-index)]
-        (* (* -1 predicted)
+        (* predicted
            (- 1 predicted)
            (- actual predicted))))
     (:output-layer net)))
@@ -79,13 +79,21 @@
 (defn modify-weights
   [net nodes-values deltas learning-rate]
   (reduce
-    (fn [net [[node-from node-to :as edge] weight]]
-      (let [gradient (* (nodes-values node-from) (deltas node-to))
-            delta-weight (* gradient learning-rate)
-            new-weight (- weight delta-weight)]
-        (network/set-weight net edge new-weight)))
+    (fn [net layer-nodes]
+      (reduce
+        (fn [net [edge new-weight]]
+          (network/set-weight net edge new-weight))
+        net
+        (for [node layer-nodes
+              edge (network/in-edges net node)
+              :let [node-from (first edge)
+                    weight (network/get-weight net edge)
+                    gradient (* (nodes-values node-from) (deltas node))
+                    delta-weight (* gradient learning-rate)
+                    new-weight (+ weight delta-weight)]]
+          [edge new-weight])))
     net
-    (:edges net)))
+    (rest (network/layers net))))
 
 (defn learn-on-vector
   "Learns network on given data vector, returns new network"
@@ -121,5 +129,4 @@
 (defn calc-error
   "Returns total error on given dataset for given network"
   [net dataset]
-  (/ (reduce + (map #(calc-error-on-vector net %) dataset))
-     (count dataset)))
+  (reduce + (map #(calc-error-on-vector net %) dataset)))

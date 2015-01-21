@@ -23,10 +23,10 @@
         [o1] (:output-layer net)]
     (-> net
         (network/add-edge i1 h1)
-        (network/add-edge i1 h2)
-        (network/add-edge i1 h3)
+        #_(network/add-edge i1 h2)
+        #_(network/add-edge i1 h3)
         (network/add-edge i2 h1)
-        (network/add-edge i2 h2)
+        #_(network/add-edge i2 h2)
         (network/add-edge i2 h3)
 
         (network/add-edge h1 o1)
@@ -34,31 +34,42 @@
         (network/add-edge h3 o1))))
 
 
+(defn calc-average-error
+  "Returns average net error"
+  [net times]
+  (let [get-error #(-> net
+                       (network/reset-weights)
+                       (trainer/learn dataset 3000 :learning-rate 0.2)
+                       (trainer/calc-error dataset))]
+    (/ (reduce + (repeatedly times get-error))
+       times)))
+
 (defn mutate-network
-  "Returns map of network mutations and corresponding test errors"
-  [network]
-  (reduce
-    (fn [errors mutation]
-      (let [error (-> (mutations/get-network mutation)
-                      (trainer/learn dataset 100 :learning-rate 0.2)
-                      (trainer/calc-error dataset))]
-        (assoc errors mutation error)))
-    {}
-    (mutations/get-mutations network)))
-
-
-;(loop [network (init-network)]
-;  (let [current-error (trainer/get-test-error network)
-;        mutated-errors (mutate-network network)
-;        best-mutation (min-key val mutated-errors)]
-;    (if (< (mutated-errors best-mutation) current-error)
-;      (recur (mutations/get-network best-mutation))
-;      (network))))
+  [base-net]
+  (let [base-error (calc-average-error base-net 5)]
+    (loop [mutations []]
+      (let [[last-net last-error] (if (empty? mutations)
+                                    [base-net base-error]
+                                    (let [[mutation error] (last mutations)]
+                                      [(:network mutation) error]))
+            net-mutations (mutations/get-mutations last-net)
+            errors (into {} (for [m net-mutations]
+                              [m (calc-average-error (:network m) 5)]))
+           [best-mutation, best-error] (apply min-key val errors)]
+        (if (>= best-error last-error)
+          [mutations base-error]
+          (recur (conj mutations [best-mutation best-error])))))))
 
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (let [base-network (init-network)
-        trained-network (trainer/learn base-network dataset 100)]
-    (report/create "index.html")))
+  (let [base-net (init-network)
+        [mutations base-error] (mutate-network base-net)]
+    (time
+      (report/create
+        "index.html"
+        base-net
+        base-error
+        mutations))
+    (System/exit 0)))
 
