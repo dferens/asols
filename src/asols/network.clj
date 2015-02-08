@@ -74,9 +74,12 @@
   (update-in network [:hidden-layers] conj (hidden-layer)))
 
 (defn add-node
-  "Adds new node to `layer-i`th hidden layer of network, returns new network"
+  "Adds new node to `layer-i`th hidden layer of network, returns new network
+  and added node"
   [network layer-i]
-  (update-in network [:hidden-layers layer-i] conj (node)))
+  (let [new-node (node)
+        new-net (update-in network [:hidden-layers layer-i] conj new-node)]
+    [new-net new-node]))
 
 (defn del-node
   "Removes given node from network, returns new network"

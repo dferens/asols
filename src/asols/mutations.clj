@@ -2,8 +2,23 @@
   (:require [asols.network :as network]))
 
 (def operations
-  #{:add-edge :del-edge})
+  #{:add-neuron
+    :add-edge :del-edge})
 
+
+(defn add-neurons-mutations
+  "Return mutations for adding new neurons to existing hidden layers
+  with 1 random edge with new neuron"
+  [net]
+  (for [index (range (count (:hidden-layers net)))]
+    (let [[net new-node] (network/add-node net index)
+          prev-layer (nth (network/layers net) index)
+          next-layer (nth (network/layers net) (+ index 2))]
+      {:operation :add-neuron
+       :network (-> net
+                    (network/add-edge (rand-nth prev-layer) new-node)
+                    (network/add-edge new-node (rand-nth next-layer)))
+       :added-neuron new-node})))
 
 (defn- add-edges-mutations
   "Return mutations for adding all missing edges"
@@ -32,5 +47,6 @@
     [:added-layer #<Network 2>] ... ]"
   [net]
   (concat
+    (add-neurons-mutations net)
     (add-edges-mutations net)
     (remove-edges-mutations net)))

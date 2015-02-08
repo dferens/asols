@@ -2,9 +2,8 @@
   (:require [dorothy.core :as dot]
             [asols.network :as network]))
 
-(defn render-network
-  "Render given network, return result as string"
-  [net & {:keys [format] :or {format :svg}}]
+(defn net->dot
+  [net]
   (let [layers (network/layers net)
         params [{:rankdir "LR"}]
         graphs (map-indexed
@@ -21,6 +20,16 @@
                  layers)
         edges (for [[edge weight] (:edges net)]
                 edge #_(into edge [{:label (format "%.2f" weight)}]))]
-    (-> (dot/digraph (concat params graphs edges))
-        (dot/dot)
-        (dot/render {:format format}))))
+    (dot/dot (dot/digraph (concat params graphs edges)))))
+
+
+(defn render-network
+  "Render given network, return result as string"
+  [net & {:keys [format] :or {format :svg}}]
+  (-> (net->dot net)
+      (dot/render {:format format})))
+
+(defn display-network
+  [net]
+  (-> (net->dot net)
+      (dot/show!)))
