@@ -1,9 +1,10 @@
 (ns asols.core
   (:gen-class :main true)
-  (:require [asols.trainer :as trainer]
+  (:require [clojure.java.browse :refer [browse-url]]
+            [asols.trainer :as trainer]
             [asols.network :as network]
             [asols.mutations :as mutations]
-            [asols.report :as report]))
+            [asols.server :as server]))
 
 (def dataset
   [[[0 0] [0]]
@@ -48,15 +49,9 @@
           (recur (conj mutations [best-mutation best-error])))))))
 
 (defn -main
-  "I don't do a whole lot ... yet."
   [& args]
-  (let [base-net (init-network)
-        [mutations base-error] (mutate-network base-net)]
-    (time
-      (report/create
-        "index.html"
-        base-net
-        base-error
-        mutations))
-    (System/exit 0)))
-
+  (let [ip "localhost"
+        port 8000]
+    (server/run :ip ip :port port)
+    (prn "Server started")
+    (browse-url (str "http://" ip ":" port))))

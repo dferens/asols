@@ -10,3 +10,4 @@ pom.xml.asc
 *.DS_Store
 .idea/
 *.iml
+resources/public/js/compiled
