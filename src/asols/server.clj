@@ -6,18 +6,19 @@
             [org.httpkit.server :as http]
             [ring.util.response :as resp]
             [ring.middleware.reload :refer [wrap-reload]]
-            [ring.middleware.resource :refer [wrap-resource]]))
+            [ring.middleware.resource :refer [wrap-resource]]
+            [ring.middleware.content-type :refer [wrap-content-type]]
+            [ring.middleware.not-modified :refer [wrap-not-modified]]))
 
 (defn index [req]
-  (resp/file-response "templates/index.html" {:root "resources/public"}))
+  (-> (slurp "resources/public/templates/index.html")
+      (resp/response)
+      (resp/header "Content-Type" "text/html; charset=utf-8")))
 
 (defn ws-handler [req]
-  (with-channel req ws-ch
+  (with-channel req chan
     (go
-      (let [{:keys [message]} (<! ws-ch)]
-        (prn "Message received:" message)
-        (>! ws-ch "Hello client from server!")
-        (close! ws-ch)))))
+      (>! chan "Hello client from server!"))))
 
 (defroutes app-routes
   (GET "/" [] index)
@@ -29,4 +30,6 @@
   (-> #'app-routes
       (wrap-reload)
       (wrap-resource "public")
+      (wrap-content-type)
+      (wrap-not-modified)
       (http/run-server {:ip ip :port port})))

@@ -49,4 +49,4 @@
   (concat
     (add-neurons-mutations net)
     (add-edges-mutations net)
-    (remove-edges-mutations net)))
+    #_(remove-edges-mutations net)))
