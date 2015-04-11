@@ -1,8 +1,18 @@
-(ns asols.network
-  (:require [asols.utils :refer [convert-base]]))
+(ns asols.network)
 
 (def ^:private alphabet (map char (range 97 123)))
 (def ^:private last-node-id (atom -1))
+
+(defn- convert-base
+  [num to-base]
+  (if (zero? num)
+    (list 0)
+    (loop [num num
+           digits ()]
+      (if (pos? num)
+        (recur (quot num to-base)
+               (conj digits (mod num to-base)))
+        digits))))
 
 (defn- node
   "Creates new node:

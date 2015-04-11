@@ -15,16 +15,26 @@
                  [jarohen/chord "0.6.0"]
                  [compojure "1.3.1"]]
 
-  :plugins [[lein-cljsbuild "1.0.4"]]
-
-  :main ^:skip-aot asols.core
+  :main ^:skip-aot asols.server
   :target-path "target/%s"
-  :profiles {:dev {:dependencies [[javax.servlet/servlet-api "2.5"]]}
+  :source-paths ["target/generated/src/clj" "src/clj"]
+
+  :profiles {:dev {:plugins [[lein-cljsbuild "1.0.4"]
+                             [com.keminglabs/cljx "0.6.0"]]
+                   :dependencies [[javax.servlet/servlet-api "2.5"]]}
              :uberjar {:aot :all}}
+
+  :cljx {:builds [{:source-paths ["src/cljx"]
+                   :output-path "target/generated/src/clj"
+                   :rules :clj}
+
+                  {:source-paths ["src/cljx"]
+                   :output-path "target/generated/src/cljs"
+                   :rules :cljs}]}
 
   :cljsbuild {
     :builds [{:id "dev"
-              :source-paths ["src"]
+              :source-paths ["src/cljs" "target/generated/src/cljs"]
               :compiler {:output-to "resources/public/js/compiled/main.js"
                          :output-dir "resources/public/js/compiled/out"
                          :source-map true

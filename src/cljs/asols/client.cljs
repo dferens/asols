@@ -2,7 +2,8 @@
   (:require [om.core :as om]
             [sablono.core :refer-macros [html]]
             [chord.client :refer [ws-ch]]
-            [cljs.core.async :refer [<! >!]])
+            [cljs.core.async :refer [<! >!]]
+            [asols.network :as network])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
 (enable-console-print!)
@@ -18,17 +19,16 @@
     om/IWillMount
     (will-mount [_]
       (go
-        (let [{chan :ws-channel error :error} (<! (ws-ch "ws://localhost:8000/ws"))]
+        (let [{chan :ws-channel error :error} (<! (ws-ch "ws://localhost:8000/ws" {:format :json-kw}))]
            (if error
              (.error js/console error)
              (do
                (.debug js/console "Client connected")
                (go-loop
-                 [{:keys [message error]} (<! chan)]
+                 [message (<! chan)]
+                 (>! chan "Response")
                  (when message
-                   (.log js/console (str "Got message " message)))
-                 (when error
-                   (.error js/console error))))))))
+                   (.log js/console (str "Got message " (pr-str message))))))))))
     om/IRender
     (render [_]
       (let [{:keys [base-net mutations]} data]
