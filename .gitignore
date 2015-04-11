@@ -11,3 +11,4 @@ pom.xml.asc
 .idea/
 *.iml
 resources/public/js/compiled
+resources/public/vendor

@@ -35,8 +35,7 @@
         (html
           [:div.app-wrapper
            [:div.base-net
-            [:p "Base network"]]
+            [:button.btn.btn-success "Test"]]
            [:div.mutations]])))))
 
-(om/root app (app-state)
-         {:target (.getElementById js/document "app")})
+(om/root app (app-state) {:target (.getElementById js/document "app")})

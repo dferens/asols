@@ -15,11 +15,15 @@
                  [jarohen/chord "0.6.0"]
                  [compojure "1.3.1"]]
 
+  :bower-dependencies [[flat-ui "2.2.2"]]
+  :bower {:directory "resources/public/vendor"}
+
   :main ^:skip-aot asols.server
   :target-path "target/%s"
   :source-paths ["target/generated/src/clj" "src/clj"]
 
   :profiles {:dev {:plugins [[lein-cljsbuild "1.0.4"]
+                             [lein-bower "0.5.1"]
                              [com.keminglabs/cljx "0.6.0"]]
                    :dependencies [[javax.servlet/servlet-api "2.5"]]}
              :uberjar {:aot :all}}
