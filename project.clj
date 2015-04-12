@@ -13,7 +13,8 @@
                  [ring/ring-devel "1.3.2"]
                  [dorothy "0.0.6"]
                  [jarohen/chord "0.6.0"]
-                 [compojure "1.3.1"]]
+                 [compojure "1.3.1"]
+                 [net.mikera/core.matrix.stats "0.5.0"]]
 
   :bower-dependencies [[flat-ui "2.2.2"]]
   :bower {:directory "resources/public/vendor"}

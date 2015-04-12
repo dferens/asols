@@ -24,8 +24,6 @@
          (apply str)
          (keyword))))
 
-(defn- rand-weight [] (rand))
-
 (defn- edge-layer
   []
   [])
@@ -86,10 +84,12 @@
 (defn add-node
   "Adds new node to `layer-i`th hidden layer of network, returns new network
   and added node"
-  [network layer-i]
-  (let [new-node (node)
-        new-net (update-in network [:hidden-layers layer-i] conj new-node)]
-    [new-net new-node]))
+  ([network]
+    (add-node network 0))
+  ([network layer-i]
+   (let [new-node (node)
+         new-net (update-in network [:hidden-layers layer-i] conj new-node)]
+     [new-net new-node])))
 
 (defn del-node
   "Removes given node from network, returns new network"
@@ -99,7 +99,7 @@
 (defn add-edge
   "Adds new edge to network, returns new network"
   [network node-from node-to]
-  (update-in network [:edges] assoc [node-from node-to] (rand-weight)))
+  (update-in network [:edges] assoc [node-from node-to] (rand)))
 
 (defn set-weight
   "Sets new weight for given edge, returns new network"
@@ -114,5 +114,5 @@
 (defn reset-weights
   [network]
   (let [new-edges (for [[k _] (:edges network)]
-                    [k (rand-weight)])]
+                    [k (rand)])]
     (assoc network :edges (into {} new-edges))))

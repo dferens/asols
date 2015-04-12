@@ -1,12 +1,13 @@
 (ns asols.trainer
-  (:require [asols.network :as network]))
+  (:require [clojure.core.matrix.stats :as stats]
+            [asols.network :as network]))
 
-(defn activation-fn
+(defn- activation-fn
   "Sigmoid activation function"
   [x]
   (/ 1 (+ 1 (Math/exp (- x)))))
 
-(defn calc-node-value
+(defn- calc-node-value
   "Calculates node output value"
   [net node nodes-values]
   (activation-fn
@@ -17,7 +18,7 @@
              (network/get-weight net edge)))
         (network/in-edges net node)))))
 
-(defn activate
+(defn- activate
   "Calculates nodes outputs on given data vector, returns map of values"
   [net input-vector]
   (reduce
@@ -43,7 +44,7 @@
            (- actual predicted))))
     (:output-layer net)))
 
-(defn calc-node-deltas
+(defn- calc-node-deltas
   [deltas net nodes-values node]
   (let [predicted (nodes-values node)
         out-edges (network/out-edges net node)]
@@ -56,7 +57,7 @@
                 (network/get-weight net edge)))
            out-edges)))))
 
-(defn calc-layer-deltas
+(defn- calc-layer-deltas
   [deltas net nodes-values layer-nodes]
   (reduce
     (fn [deltas node]
@@ -65,7 +66,7 @@
     deltas
     layer-nodes))
 
-(defn calc-deltas
+(defn- calc-deltas
   "Calculates network deltas, returns collection of deltas"
   [net nodes-values data-vector]
   (let [output-deltas (calc-output-deltas net nodes-values data-vector)
@@ -76,8 +77,8 @@
       (zipmap (:output-layer net) output-deltas)
       (reverse layers-to-process))))
 
-(defn modify-weights
-  [net nodes-values deltas learning-rate]
+(defn- modify-weights
+  [net nodes-values deltas {:keys [learning-rate]}]
   (reduce
     (fn [net layer-nodes]
       (reduce
@@ -95,28 +96,24 @@
     net
     (rest (network/layers net))))
 
-(defn learn-on-vector
-  "Learns network on given data vector, returns new network"
-  [net data-vector learning-rate]
+(defn- train-on-vector
+  "Trains network on given data vector, returns new network"
+  [net data-vector opts]
   (let [nodes-values (activate net (first data-vector))
         deltas (calc-deltas net nodes-values data-vector)]
-    (modify-weights net nodes-values deltas learning-rate)))
+    (modify-weights net nodes-values deltas opts)))
 
-(defn learn
-  "Learns network on given dataset.
-
-   Keyword arguments:
-     :learning-rate (0...1) - how fast network trains"
-  [net dataset iterations & {:keys [learning-rate]
-                             :or {learning-rate 0.1}}]
+(defn- train
+  "Trains network on given dataset, returns new network"
+  [net dataset {:keys [iter-count] :as opts}]
   (reduce
-    #(learn-on-vector %1 %2 learning-rate)
+    #(train-on-vector %1 %2 opts)
     net
-    (for [_ (range iterations)
+    (for [_ (range iter-count)
           training-example dataset]
       training-example)))
 
-(defn calc-error-on-vector
+(defn- calc-error-on-vector
   "Returns error value on given data vector for given network"
   [net [input-vector expected-output]]
   (let [nodes-values (activate net input-vector)
@@ -126,7 +123,24 @@
       (reduce +
         (map (comp square -) expected-output predicted-output)))))
 
-(defn calc-error
+(defn- calc-error
   "Returns total error on given dataset for given network"
   [net dataset]
   (reduce + (map #(calc-error-on-vector net %) dataset)))
+
+
+(defn calc-mean-error
+  "Returns mean error & variance on given net"
+  [net dataset times
+   {:keys [learning-rate momentum iter-count]
+    :or {learning-rate 0.1
+         momentum 0.9
+         iter-count 1000}
+    :as opts}]
+  (let [net-errors (into {} (for [_ (range times)
+                                  :let [new-net (-> (network/reset-weights net)
+                                                    (train dataset opts))
+                                        new-error (calc-error new-net dataset)]]
+                               [new-error new-net]))]
+    {:mean-error (stats/mean (keys net-errors))
+     :variance (stats/variance (keys net-errors))}))

@@ -11,7 +11,8 @@
             [ring.middleware.resource :refer [wrap-resource]]
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.not-modified :refer [wrap-not-modified]]
-            [asols.core :as core]))
+            [asols.solver :as solver]
+            [asols.graphics :as graphics]))
 
 (defn index [req]
   (-> (slurp "resources/public/templates/index.html")
@@ -19,11 +20,32 @@
       (resp/header "Content-Type" "text/html; charset=utf-8")))
 
 (defn ws-handler [req]
-  (with-channel req chan {:format :json-kw}
-    (go
-      (>! chan (core/init-network))
-      (go-loop [{:keys [message]} (<! chan)]
-        (prn (str "Got from client: " message))))))
+  (with-channel req chan {:format :transit-json}
+    (prn "Client connected")
+    (go-loop [{:keys [message]} (<! chan)]
+      (prn "Received:" message)
+      (when (= (:command message) :start)
+        (let [{:keys [opts]} message
+              dataset [[[0 0] [0]] [[1 1] [0]] [[1 0] [1]] [[0 1] [1]]]
+              start-net (solver/create-start-net 2 1)]
+          (loop [net start-net
+                 current-error nil]
+            (let [{:keys [mutation mean-error] :as solving} (solver/step-net net dataset 5 opts)
+                  ]
+              (if (or (nil? current-error)
+                      (< mean-error current-error))
+                (do
+                  (>! chan {:command :step
+                            :solving solving
+                            :graph (graphics/render-network (:network mutation))})
+                  (prn "Sent step")
+                  (recur (:network mutation) mean-error))
+                (do
+                  (>! chan {:command :step
+                            :solving solving
+                            :graph (graphics/render-network (:network mutation))})
+                  (>! chan {:command :finished})
+                  (prn "Finished"))))))))))
 
 (defroutes app-routes
   (GET "/" [] index)

@@ -6,7 +6,7 @@
     :add-edge :del-edge})
 
 
-(defn add-neurons-mutations
+(defn- add-neurons-mutations
   "Return mutations for adding new neurons to existing hidden layers
   with 1 random edge with new neuron"
   [net]
