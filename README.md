@@ -6,6 +6,16 @@ Algorithm of Structure Optimization on Learning Stage
 
 FIXME
 
+## Development
+
+1. Launch cljs auto build & figwheel
+
+    $ lein dev
+    
+2. Launch app
+
+    $ lein run
+
 ## Usage
 
 FIXME: explanation
