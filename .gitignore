@@ -10,6 +10,7 @@ pom.xml.asc
 *.DS_Store
 .idea/
 *.iml
+resources/public/css/
 resources/public/js/compiled
 resources/public/vendor
 figwheel_server.log

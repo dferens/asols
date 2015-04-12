@@ -25,6 +25,7 @@
   :source-paths ["target/generated/src/clj" "src/clj"]
 
   :profiles {:dev {:plugins [[lein-cljsbuild "1.0.4"]
+                             [lein-haml-sass "0.2.7-SNAPSHOT"]
                              [lein-bower "0.5.1"]
                              [lein-figwheel "0.2.6"]
                              [lein-pdo "0.1.1"]
@@ -33,6 +34,7 @@
              :uberjar {:aot :all}}
 
   :aliases {"dev" ["pdo" ["cljx" "auto"]
+                         ["sass" "auto"]
                          ["figwheel"]]}
 
   :cljx {:builds [{:source-paths ["src/cljx"]
@@ -49,4 +51,8 @@
               :compiler {:output-to "resources/public/js/compiled/main.js"
                          :output-dir "resources/public/js/compiled/out"
                          :source-map true
-                         :optimizations :none}}]})
+                         :optimizations :none}}]}
+            
+  :sass {:src "resources/public/sass"
+         :output-directory "resources/public/css"
+         :output-extension "css"})
