@@ -80,6 +80,14 @@
   (get-weight [_ edge]
     (edges edge)))
 
+(defn- rand-weight [{input-layer :input-layer}]
+  "Returns randon number in range [-scale .. scale] where scale
+  is sqrt(3 / inputs-count)"
+  (let [scale (Math/sqrt (/ 3 (count input-layer)))]
+    (-> (rand)
+        (* 2 scale)
+        (- scale))))
+
 (defn network
   "Creates new network"
   [input-count output-count]
@@ -112,7 +120,7 @@
 (defn add-edge
   "Adds new edge to network, returns new network"
   [network node-from node-to]
-  (update-in network [:edges] assoc [node-from node-to] (rand)))
+  (update-in network [:edges] assoc [node-from node-to] (rand-weight network)))
 
 (defn set-weight
   "Sets new weight for given edge, returns new network"
@@ -127,5 +135,5 @@
 (defn reset-weights
   [network]
   (let [new-edges (for [[k _] (:edges network)]
-                    [k (rand)])]
+                    [k (rand-weight network)])]
     (assoc network :edges (into {} new-edges))))
