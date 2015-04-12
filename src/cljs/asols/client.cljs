@@ -20,9 +20,9 @@
   (reify
     om/IInitState
     (init-state [_]
-      {:lr 0.2
-       :momentum 0.9
-       :iters 3000})
+      {:lr 0.3
+       :momentum 1.0
+       :iters 2000})
 
     om/IRenderState
     (render-state [_ {:keys [lr momentum iters]}]
@@ -64,7 +64,9 @@
                [:button.btn.btn-primary.btn-block
                 {:type     "button"
                  :disabled (when running? "disabled")
-                 :on-click #(go (>! start-chan [lr momentum iters]))}
+                 :on-click #(go (>! start-chan [(js/parseFloat lr)
+                                                (js/parseFloat momentum)
+                                                (js/parseInt iters)]))}
                 "Start"]]]]]])))))
 
 (defmulti mutation-view :operation)
@@ -106,9 +108,9 @@
              [:span.label.label-info (format-variance variance)]
              [:span.label.label-danger (format-error mean-error)]]]
            [:.row {:class (when-not visible? "hidden")}
-            [:.col-sm-4
+            [:.col-sm-5
              {:dangerouslySetInnerHTML {:__html graph}}]
-            [:.col-sm-8
+            [:.col-sm-7
              [:table.table.table-condensed
               [:thead [:tr (for [col-name ["Operation" "Error" "Variance"]]
                              [:th col-name])]]

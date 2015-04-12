@@ -5,7 +5,6 @@
   #{:add-neuron
     :add-edge :del-edge})
 
-
 (defn- add-neurons-mutations
   "Return mutations for adding new neurons to existing hidden layers.
   Each new neuron will be fully connected to prev & next layers."

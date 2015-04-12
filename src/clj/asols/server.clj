@@ -1,8 +1,6 @@
 (ns asols.server
-  (:gen-class :main true)
   (:require [chord.http-kit :refer [with-channel]]
             [clojure.core.async :refer [<! >! close! go go-loop]]
-            [clojure.java.browse :refer [browse-url]]
             [compojure.core :refer [defroutes GET]]
             [compojure.handler :refer [site]]
             [org.httpkit.server :as http]
@@ -12,8 +10,7 @@
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.not-modified :refer [wrap-not-modified]]
             [asols.solver :as solver]
-            [asols.worker :as worker]
-            [asols.graphics :as graphics]))
+            [asols.worker :as worker]))
 
 (defn index [req]
   (-> (slurp "resources/public/templates/index.html")
@@ -25,21 +22,19 @@
     (prn "Client connected")
     (go-loop [{:keys [message]} (<! chan)]
       (prn "Received:" message)
-      (let [{:keys [train-opts]} message
-            dataset [[[0 0] [0]] [[1 1] [0]] [[1 0] [1]] [[0 1] [1]]]
-            start-net (solver/create-start-net 2 1)]
-        (loop [net start-net
-               current-error nil]
-          (let [{:keys [mutation mean-error] :as solving} (solver/step-net net dataset 3 train-opts)]
-            (if (or (nil? current-error)
-                    (< mean-error current-error))
-              (do
-                (>! chan (worker/step-command solving))
-                (prn "Sent step")
-                (recur (:network mutation) mean-error))
-              (do
-                (>! chan (worker/finished-command))
-                (prn "Finished"))))))
+      (if (= (:command message) ::worker/start)
+        (let [{:keys [train-opts]} message
+              dataset [[[0 0] [0]] [[1 1] [0]] [[1 0] [1]] [[0 1] [1]]]
+              start-net (solver/create-start-net 2 1)]
+          (loop [net start-net
+                 current-error nil]
+            (let [{:keys [mutation mean-error] :as solving} (solver/step-net net dataset 3 train-opts)]
+              (>! chan (worker/step-command solving))
+              (prn "Sent step")
+              (if (or (nil? current-error)
+                      (< mean-error current-error))
+                (recur (:network mutation) mean-error)
+                (>! chan (worker/finished-command)))))))
       (recur (<! chan)))))
 
 (defroutes app-routes
@@ -55,11 +50,3 @@
       (wrap-content-type)
       (wrap-not-modified)
       (http/run-server {:ip ip :port port})))
-
-(defn -main
-  [& args]
-  (let [ip "localhost"
-        port 8000]
-    (run :ip ip :port port)
-    (prn "Server started")
-    (browse-url (str "http://" ip ":" port))))

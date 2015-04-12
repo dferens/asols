@@ -20,7 +20,7 @@
   :bower-dependencies [[flat-ui "2.2.2"]]
   :bower {:directory "resources/public/vendor"}
 
-  :main ^:skip-aot asols.server
+  :main ^:skip-aot asols.core
   :target-path "target/%s"
   :source-paths ["target/generated/src/clj" "src/clj"]
 

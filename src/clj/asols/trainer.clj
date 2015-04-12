@@ -2,21 +2,24 @@
   (:require [clojure.core.matrix.stats :refer [sum sum-of-squares mean variance]]
             [asols.network :as network]))
 
-(defn- activation-fn
+(defn- act-fn
   "Sigmoid activation function"
   [x]
   (/ 1 (+ 1 (Math/exp (- x)))))
 
+(defn- act-fn-dx
+  "Sigmoid activation function derivative"
+  [fx]
+  (* fx (- 1 fx)))
+
 (defn- calc-node-value
   "Calculates node output value"
   [net node nodes-values]
-  (activation-fn
+  (act-fn
     (sum
-      (map
-        (fn [[node-from _ :as edge]]
-          (* (nodes-values node-from)
-             (network/get-weight net edge)))
-        (network/in-edges net node)))))
+      (for [[node-from _ :as edge] (network/in-edges net node)]
+        (* (nodes-values node-from)
+           (network/get-weight net edge))))))
 
 (defn- activate
   "Calculates nodes outputs on given data vector, returns map of values"
@@ -39,8 +42,7 @@
       (let [predicted (nodes-values output-node)
             [_ out-vector] data-vector
             actual (nth out-vector node-index)]
-        (* predicted
-           (- 1 predicted)
+        (* (act-fn-dx predicted)
            (- actual predicted))))
     (:output-layer net)))
 
@@ -48,8 +50,7 @@
   [deltas net nodes-values node]
   (let [predicted (nodes-values node)
         out-edges (network/out-edges net node)]
-    (* predicted
-       (- 1 predicted)
+    (* (act-fn-dx predicted)
        (sum
          (map
            (fn [[_ node-to :as edge]]
@@ -77,8 +78,10 @@
       (zipmap (:output-layer net) output-deltas)
       (reverse layers-to-process))))
 
+(defrecord TrainOpts [learning-rate momentm iter-count])
+
 (defn- modify-weights
-  [net nodes-values deltas {:keys [learning-rate]}]
+  [net nodes-values deltas opts]
   (reduce
     (fn [net layer-nodes]
       (reduce
@@ -90,8 +93,8 @@
               :let [node-from (first edge)
                     weight (network/get-weight net edge)
                     gradient (* (nodes-values node-from) (deltas node))
-                    delta-weight (* gradient learning-rate)
-                    new-weight (+ weight delta-weight)]]
+                    delta-weight (* gradient (:learning-rate opts))
+                    new-weight (+ (* weight (:momentum opts)) delta-weight)]]
           [edge new-weight])))
     net
     (rest (network/layers net))))
@@ -126,15 +129,9 @@
   [net dataset]
   (sum (map #(calc-error-on-vector net %) dataset)))
 
-
 (defn calc-mean-error
   "Returns mean error & variance after training given net @times times"
-  [net dataset times
-   {:keys [learning-rate momentum iter-count]
-    :or {learning-rate 0.1
-         momentum 0.9
-         iter-count 1000}
-    :as opts}]
+  [net dataset times opts]
   (let [net-errors (into {} (for [_ (range times)
                                   :let [new-net (-> (network/reset-weights net)
                                                     (train dataset opts))
