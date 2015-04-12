@@ -45,7 +45,8 @@
                             :solving solving
                             :graph (graphics/render-network (:network mutation))})
                   (>! chan {:command :finished})
-                  (prn "Finished"))))))))))
+                  (prn "Finished")))))))
+      (recur (<! chan)))))
 
 (defroutes app-routes
   (GET "/" [] index)

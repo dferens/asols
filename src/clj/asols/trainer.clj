@@ -1,5 +1,5 @@
 (ns asols.trainer
-  (:require [clojure.core.matrix.stats :as stats]
+  (:require [clojure.core.matrix.stats :refer [sum sum-of-squares mean variance]]
             [asols.network :as network]))
 
 (defn- activation-fn
@@ -11,7 +11,7 @@
   "Calculates node output value"
   [net node nodes-values]
   (activation-fn
-    (reduce +
+    (sum
       (map
         (fn [[node-from _ :as edge]]
           (* (nodes-values node-from)
@@ -50,7 +50,7 @@
         out-edges (network/out-edges net node)]
     (* predicted
        (- 1 predicted)
-       (reduce +
+       (sum
          (map
            (fn [[_ node-to :as edge]]
              (* (deltas node-to)
@@ -120,13 +120,12 @@
         predicted-output (mapv nodes-values (:output-layer net))
         square (fn [x] (* x x))]
     (* 0.5
-      (reduce +
-        (map (comp square -) expected-output predicted-output)))))
+       (sum-of-squares (map - expected-output predicted-output)))))
 
 (defn- calc-error
   "Returns total error on given dataset for given network"
   [net dataset]
-  (reduce + (map #(calc-error-on-vector net %) dataset)))
+  (sum (map #(calc-error-on-vector net %) dataset)))
 
 
 (defn calc-mean-error
@@ -142,5 +141,5 @@
                                                     (train dataset opts))
                                         new-error (calc-error new-net dataset)]]
                                [new-error new-net]))]
-    {:mean-error (stats/mean (keys net-errors))
-     :variance (stats/variance (keys net-errors))}))
+    {:mean-error (mean (keys net-errors))
+     :variance (variance (keys net-errors))}))
