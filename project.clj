@@ -52,7 +52,9 @@
                          :output-dir "resources/public/js/compiled/out"
                          :source-map true
                          :optimizations :none}}]}
-            
+
   :sass {:src "resources/public/sass"
          :output-directory "resources/public/css"
-         :output-extension "css"})
+         :output-extension "css"}
+
+  :figwheel {:css-dirs ["resources/public/css"]})
