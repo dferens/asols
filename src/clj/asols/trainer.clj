@@ -78,7 +78,7 @@
       (zipmap (:output-layer net) output-deltas)
       (reverse layers-to-process))))
 
-(defrecord TrainOpts [learning-rate momentm iter-count])
+(defrecord TrainOpts [learning-rate momentum iter-count])
 
 (defn- modify-weights
   [net nodes-values deltas opts]

@@ -7,14 +7,19 @@
 
 
 (defn start-command
-  [& {:keys [learning-rate momentum iter-count]
+  [& {:keys [learning-rate momentum iter-count
+             remove-edges? remove-nodes?]
       :or {learning-rate 0.1
            momentum 0.9
-           iter-count 1000}}]
+           iter-count 1000
+           remove-edges? true
+           remove-nodes? true}}]
   {:command    ::start
    :train-opts {:learning-rate learning-rate
                 :momentum      momentum
-                :iter-count    iter-count}})
+                :iter-count    iter-count}
+   :mutation-opts {:remove-edges? remove-edges?
+                   :remove-nodes? remove-nodes?}})
 
 #+clj
 (defn step-command

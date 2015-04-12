@@ -2,10 +2,10 @@
   (:require [asols.network :as network]))
 
 (def operations
-  #{:add-neuron
+  #{:add-neuron :del-neuron
     :add-edge :del-edge})
 
-(defn- add-neurons-mutations
+(defn add-neurons-mutations
   "Return mutations for adding new neurons to existing hidden layers.
   Each new neuron will be fully connected to prev & next layers."
   [net]
@@ -19,7 +19,7 @@
                       (reduce #(network/add-edge %1 new-node %2) $ next-layer))
        :added-neuron new-node})))
 
-(defn- add-edges-mutations
+(defn add-edges-mutations
   "Return mutations for adding all missing edges"
   [net]
   (let [layers (network/layers net)
@@ -32,7 +32,20 @@
        :network (network/add-edge net node-from node-to)
        :added-edge [node-from node-to]})))
 
-(defn- remove-edges-mutations
+(defn remove-neurons-mutations
+  [net]
+  (let [layers (:hidden-layers net)
+        layers-indexed (for [i (range (count layers))]
+                         [i (nth layers i)])]
+    (for [[layer-i layer] layers-indexed
+          node layer
+          :when (> (count layer) 1)]
+      (let []
+        {:operation      :del-neuron
+         :network        (network/del-node net layer-i node)
+         :deleted-neuron node}))))
+
+(defn remove-edges-mutations
   "Return mutations for deletion of all net edges"
   [net]
   (for [[edge _] (:edges net)
@@ -40,13 +53,3 @@
     {:operation :del-edge
      :network (network/del-edge net edge)
      :deleted-edge edge}))
-
-(defn get-mutations
-  "Returns lazy sequence of all possible network mutations like:
-   [[:added-node #<Network 1>]
-    [:added-layer #<Network 2>] ... ]"
-  [net]
-  (concat
-    (add-neurons-mutations net)
-    (add-edges-mutations net)
-    (remove-edges-mutations net)))

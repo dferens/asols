@@ -13,61 +13,84 @@
 
 
 (defonce app-state
-  (atom {:running? false
+  (atom {:connection :nil
+         :running? false
+         :settings {:learning-rate 0.3
+                    :momentum 1.0
+                    :iter-count 2000
+                    :remove-edges? true
+                    :remove-nodes? false}
          :solvings []}))
 
-(defn settings-panel [{:keys [start-chan running?]} owner]
+(defn settings-panel [{:keys [start-chan running? settings]} owner]
   (reify
-    om/IInitState
-    (init-state [_]
-      {:lr 0.3
-       :momentum 1.0
-       :iters 2000})
-
-    om/IRenderState
-    (render-state [_ {:keys [lr momentum iters]}]
-      (let [[label-width field-width] [3 3]
+    om/IRender
+    (render [_]
+      (let [[label-width field-width] [6 6]
             label-class (str "col-sm-" label-width)
             field-class (str "col-sm-" field-width)]
         (html
-          [:.panel.panel-default
+          [:.panel.panel-default.settings
            [:.panel-heading "Settings"]
            [:.panel-body
-            [:form.form-horizontal
+            [:.row
+             [:.col-sm-6
+              [:form.form-horizontal
+               [:.form-group
+                [:label.control-label {:class label-class :for :input-lr}
+                 "Learning rate"]
+                [:div {:class field-class}
+                 [:input.form-control#input-lr
+                  {:value     (:learning-rate settings)
+                   :on-change #(om/update! settings :learning-rate (.. % -target -value))}]]]
 
-             [:.form-group
-              [:label.control-label {:class label-class :for :input-lr}
-               "Learning rate"]
-              [:div {:class field-class}
-               [:input.form-control#input-lr
-                {:value     lr
-                 :on-change #(om/set-state! owner :lr (.. % -target -value))}]]]
+               [:.form-group
+                [:label.control-label {:class label-class :for :input-momentum}
+                 "Momentum"]
+                [:div {:class field-class}
+                 [:input.form-control#input-momentum
+                  {:value     (:momentum settings)
+                   :on-change #(om/update! settings :momentum (.. % -target -value))}]]]
 
-             [:.form-group
-              [:label.control-label {:class label-class :for :input-momentum}
-               "Momentum"]
-              [:div {:class field-class}
-               [:input.form-control#input-momentum
-                {:value     momentum
-                 :on-change #(om/set-state! owner :momentum (.. % -target -value))}]]]
+               [:.form-group
+                [:label.control-label {:class label-class :for :input-iters}
+                 "Iterations"]
+                [:div {:class field-class}
+                 [:input.form-control#input-iters
+                  {:value     (:iter-count settings)
+                   :on-change #(om/update! settings :iter-count (.. % -target -value))}]]]
 
-             [:.form-group
-              [:label.control-label {:class label-class :for :input-iters}
-               "Iterations"]
-              [:div {:class field-class}
-               [:input.form-control#input-iters
-                {:value     iters
-                 :on-change #(om/set-state! owner :iters (.. % -target -value))}]]]
-
-             [:.form-group
-              [:div {:class [field-class (str "col-sm-offset-" label-width)]}
-               [:button.btn.btn-primary.btn-block
-                {:type     "button"
-                 :disabled (when running? "disabled")
-                 :on-click #(go (>! start-chan [(js/parseFloat lr)
-                                                (js/parseFloat momentum)
-                                                (js/parseInt iters)]))}
-                "Start"]]]]]])))))
+               [:.form-group
+                [:div {:class [field-class (str "col-sm-offset-" label-width)]}
+                 [:button.btn.btn-primary.btn-block
+                  {:type     "button"
+                   :disabled (when running? "disabled")
+                   :on-click #(go (>! start-chan {}))}
+                  "Start"]]]]]
+             [:.col-sm-6
+              [:form.form-horizontal
+               [:.form-group
+                [:.col-sm-12
+                 [:label.checkbox
+                  [:input.custom-checkbox
+                   {:type      "checkbox"
+                    :checked   (when (:remove-edges? settings) "checked")
+                    :on-change #(om/update! settings :remove-edges? (.. % -target -checked))}]
+                  [:span.icons
+                   [:span.icon-checked]
+                   [:span.icon-unchecked]]
+                  "Remove edges?"]]]
+               [:.form-group
+                [:.col-sm-12
+                 [:label.checkbox
+                  [:input.custom-checkbox
+                   {:type      "checkbox"
+                    :checked   (when (:remove-nodes? settings) "checked")
+                    :on-change #(om/update! settings :remove-nodes? (.. % -target -checked))}]
+                  [:span.icons
+                   [:span.icon-checked]
+                   [:span.icon-unchecked]]
+                  "Remove nodes?"]]]]]]]])))))
 
 (defmulti mutation-view :operation)
 
@@ -80,6 +103,10 @@
     [:p "Added edge "
      [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
 
+(defmethod mutation-view :del-neuron [m]
+  [:p "Removed node "
+   [:span.label.label-primary (name (:deleted-neuron m))]])
+
 (defmethod mutation-view :del-edge [m]
   (let [[node-from node-to] (:deleted-edge m)]
     [:p "Removed edge "
@@ -89,21 +116,19 @@
   (reify
     om/IInitState
     (init-state [_]
-      {:visible? true})
+      {:visible? false})
     om/IRender
     (render [_]
       (html
         (let [{:keys [visible?]} (om/get-state owner)
               {:keys [mutation mean-error variance mutations-tried]} solving
-              operation (name (:operation mutation))
-              format-title (partial gstring/format "%d. %s")
               format-error (partial gstring/format "%.5f")
               format-variance (partial gstring/format "%.5f")]
           [:li.list-group-item.solving
            [:.row
             [:.col-sm-8
              [:p {:on-click #(om/update-state! owner :visible? not)}
-              (format-title number operation)]]
+              (mutation-view mutation)]]
             [:.col-sm-4.stats
              [:span.label.label-info (format-variance variance)]
              [:span.label.label-danger (format-error mean-error)]]]
@@ -139,7 +164,7 @@
                         :graph   graph}
                        {:react-key i}))]]]))))
 
-(defn app [{:keys [connection running? solvings] :as cursor} owner]
+(defn app [{:keys [connection settings running? solvings] :as cursor} owner]
   (reify
     om/IInitState
     (init-state [_]
@@ -147,13 +172,16 @@
 
     om/IWillMount
     (will-mount [_]
-      (go-loop [[lr momentum iters] (<! (om/get-state owner :start-chan))]
+      (go-loop []
+               (<! (om/get-state owner :start-chan))
                (om/update! cursor :running? true)
                (om/update! cursor :solvings [])
-               (>! connection (worker/start-command :learning-rate lr
-                                                    :momentum momentum
-                                                    :iter-count iters))
-               (recur (<! (om/get-state owner :start-chan))))
+               (>! connection (worker/start-command :learning-rate (js/parseFloat (:learning-rate settings))
+                                                    :momentum (js/parseFloat (:momentum settings))
+                                                    :iter-count (js/parseInt (:iter-count settings))
+                                                    :remove-edges? (:remove-edges? settings)
+                                                    :remove-nodes? (:remove-nodes settings)))
+               (recur))
       (go-loop [{message :message} (<! connection)]
                (.debug js/console (str "Received:" (pr-str message)))
                (case (:command message)
@@ -168,7 +196,9 @@
         [:.container.app
          [:.row-fluid
           [:.col-md-12
-           (om/build settings-panel {:start-chan start-chan :running? running?})]]
+           (om/build settings-panel {:start-chan start-chan
+                                     :running? running?
+                                     :settings settings})]]
          [:.row-fluid
           [:.col-md-12
            (om/build solvings-panel {:solvings solvings})]]]))))

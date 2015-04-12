@@ -10,7 +10,8 @@
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.not-modified :refer [wrap-not-modified]]
             [asols.solver :as solver]
-            [asols.worker :as worker]))
+            [asols.worker :as worker]
+            [asols.trainer :as trainer]))
 
 (defn index [req]
   (-> (slurp "resources/public/templates/index.html")
@@ -23,12 +24,15 @@
     (go-loop [{:keys [message]} (<! chan)]
       (prn "Received:" message)
       (if (= (:command message) ::worker/start)
-        (let [{:keys [train-opts]} message
+        (let [{:keys [train-opts mutation-opts]} message
+              train-opts (trainer/map->TrainOpts train-opts)
+              mutation-opts (solver/map->MutationOpts mutation-opts)
               dataset [[[0 0] [0]] [[1 1] [0]] [[1 0] [1]] [[0 1] [1]]]
               start-net (solver/create-start-net 2 1)]
           (loop [net start-net
                  current-error nil]
-            (let [{:keys [mutation mean-error] :as solving} (solver/step-net net dataset 3 train-opts)]
+            (let [solving (solver/step-net net dataset 3 train-opts mutation-opts)
+                  {:keys [mutation mean-error]} solving]
               (>! chan (worker/step-command solving))
               (prn "Sent step")
               (if (or (nil? current-error)

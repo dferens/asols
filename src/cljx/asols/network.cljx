@@ -114,8 +114,13 @@
 
 (defn del-node
   "Removes given node from network, returns new network"
-  [network layer-i node]
-  (update-in network [:hidden-layers layer-i] dissoc node))
+  [{edges :edges :as network} layer-i node]
+  (let [edges-left (for [edge (keys edges)
+                         :when (every? #(not= % node) edge)]
+                     edge)]
+    (-> network
+        (update-in [:hidden-layers layer-i] disj node)
+        (update-in [:edges] select-keys edges-left))))
 
 (defn add-edge
   "Adds new edge to network, returns new network"
