@@ -5,6 +5,7 @@
             [cljs.core.async :refer [<! >! chan]]
             [goog.string :as gstring]
             [goog.string.format]
+            [asols.worker :as worker]
             [figwheel.client :as fw])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
@@ -147,17 +148,16 @@
       (go-loop [[lr momentum iters] (<! (om/get-state owner :start-chan))]
                (om/update! cursor :running? true)
                (om/update! cursor :solvings [])
-               (>! connection {:command :start
-                               :opts    {:learning-rate (double lr)
-                                         :momentum      (double momentum)
-                                         :iter-count    (int iters)}})
+               (>! connection (worker/start-command :learning-rate lr
+                                                    :momentum momentum
+                                                    :iter-count iters))
                (recur (<! (om/get-state owner :start-chan))))
       (go-loop [{message :message} (<! connection)]
                (.debug js/console (str "Received:" (pr-str message)))
                (case (:command message)
-                 :step (let [{:keys [solving graph]} message]
-                         (om/transact! solvings #(conj % [solving graph])))
-                 :finished (om/update! cursor :running? false))
+                 ::worker/step (let [{:keys [solving graph]} message]
+                                (om/transact! solvings #(conj % [solving graph])))
+                 ::worker/finished (om/update! cursor :running? false))
                (recur (<! connection))))
 
     om/IRenderState

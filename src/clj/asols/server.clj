@@ -12,6 +12,7 @@
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.not-modified :refer [wrap-not-modified]]
             [asols.solver :as solver]
+            [asols.worker :as worker]
             [asols.graphics :as graphics]))
 
 (defn index [req]
@@ -24,25 +25,21 @@
     (prn "Client connected")
     (go-loop [{:keys [message]} (<! chan)]
       (prn "Received:" message)
-      (when (= (:command message) :start)
-        (let [{:keys [opts]} message
-              dataset [[[0 0] [0]] [[1 1] [0]] [[1 0] [1]] [[0 1] [1]]]
-              start-net (solver/create-start-net 2 1)]
-          (loop [net start-net
-                 current-error nil]
-            (let [{:keys [mutation mean-error] :as solving} (solver/step-net net dataset 3 opts)
-                  ]
-              (if (or (nil? current-error)
-                      (< mean-error current-error))
-                (do
-                  (>! chan {:command :step
-                            :solving solving
-                            :graph (graphics/render-network (:network mutation))})
-                  (prn "Sent step")
-                  (recur (:network mutation) mean-error))
-                (do
-                  (>! chan {:command :finished})
-                  (prn "Finished")))))))
+      (let [{:keys [train-opts]} message
+            dataset [[[0 0] [0]] [[1 1] [0]] [[1 0] [1]] [[0 1] [1]]]
+            start-net (solver/create-start-net 2 1)]
+        (loop [net start-net
+               current-error nil]
+          (let [{:keys [mutation mean-error] :as solving} (solver/step-net net dataset 3 train-opts)]
+            (if (or (nil? current-error)
+                    (< mean-error current-error))
+              (do
+                (>! chan (worker/step-command solving))
+                (prn "Sent step")
+                (recur (:network mutation) mean-error))
+              (do
+                (>! chan (worker/finished-command))
+                (prn "Finished"))))))
       (recur (<! chan)))))
 
 (defroutes app-routes
