@@ -2,7 +2,8 @@
   (:require [om.core :as om]
             [sablono.core :refer-macros [html]]
             [chord.client :refer [ws-ch]]
-            [cljs.core.async :refer [<! >! chan]])
+            [cljs.core.async :refer [<! >! chan]]
+            [figwheel.client :as fw])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
 (enable-console-print!)
@@ -11,7 +12,6 @@
 (defonce app-state
   (atom {:running? false
          :solvings []}))
-
 
 (defn settings-panel [{:keys [start-chan running?]} owner]
   (reify
@@ -128,3 +128,5 @@
           (.log js/console "Connected to websocket channel")
           (swap! app-state assoc :connection connection)
           (om/root app app-state {:target (.-body js/document)})))))
+
+(fw/start {:websocket-url "ws://localhost:3449/figwheel-ws"})

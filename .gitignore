@@ -12,3 +12,4 @@ pom.xml.asc
 *.iml
 resources/public/js/compiled
 resources/public/vendor
+figwheel_server.log

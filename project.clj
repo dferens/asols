@@ -8,6 +8,7 @@
                  [org.clojure/clojurescript "0.0-2850"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [org.omcljs/om "0.8.8"]
+                 [figwheel "0.2.6"]
                  [sablono "0.3.4"]
                  [ring/ring-core "1.3.2"]
                  [ring/ring-devel "1.3.2"]
@@ -25,6 +26,7 @@
 
   :profiles {:dev {:plugins [[lein-cljsbuild "1.0.4"]
                              [lein-bower "0.5.1"]
+                             [lein-figwheel "0.2.6"]
                              [com.keminglabs/cljx "0.6.0"]]
                    :dependencies [[javax.servlet/servlet-api "2.5"]]}
              :uberjar {:aot :all}}
