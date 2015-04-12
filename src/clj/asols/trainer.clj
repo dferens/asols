@@ -117,8 +117,7 @@
   "Returns error value on given data vector for given network"
   [net [input-vector expected-output]]
   (let [nodes-values (activate net input-vector)
-        predicted-output (mapv nodes-values (:output-layer net))
-        square (fn [x] (* x x))]
+        predicted-output (mapv nodes-values (:output-layer net))]
     (* 0.5
        (sum-of-squares (map - expected-output predicted-output)))))
 
@@ -129,7 +128,7 @@
 
 
 (defn calc-mean-error
-  "Returns mean error & variance on given net"
+  "Returns mean error & variance after training given net @times times"
   [net dataset times
    {:keys [learning-rate momentum iter-count]
     :or {learning-rate 0.1

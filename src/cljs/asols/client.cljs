@@ -66,45 +66,75 @@
                  :on-click #(go (>! start-chan [lr momentum iters]))}
                 "Start"]]]]]])))))
 
+(defmulti mutation-view :operation)
+
+(defmethod mutation-view :add-neuron [m]
+  [:p "Added node "
+   [:span.label.label-primary (name (:added-neuron m))]])
+
+(defmethod mutation-view :add-edge [m]
+  (let [[node-from node-to] (:added-edge m)]
+    [:p "Added edge "
+     [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
+
+(defmethod mutation-view :del-edge [m]
+  (let [[node-from node-to] (:deleted-edge m)]
+    [:p "Removed edge "
+     [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
+
 (defn solving-block [{:keys [number solving graph]} owner]
   (reify
     om/IInitState
     (init-state [_]
-      {:visible? false})
+      {:visible? true})
     om/IRender
     (render [_]
       (html
         (let [{:keys [visible?]} (om/get-state owner)
-              {:keys [mutation mean-error variance]} solving
+              {:keys [mutation mean-error variance mutations-tried]} solving
               operation (name (:operation mutation))
-              title (gstring/format "%d. %s" number operation)
-              error-label (gstring/format "%.5f" mean-error)
-              variance-label (gstring/format "%.5f" variance)]
-          [:li.list-group-item {:on-click #(om/update-state! owner :visible? not)}
+              format-title (partial gstring/format "%d. %s")
+              format-error (partial gstring/format "%.5f")
+              format-variance (partial gstring/format "%.5f")]
+          [:li.list-group-item.solving
            [:.row
             [:.col-sm-8
-             [:p title]]
-            [:.col-sm-4
-             [:span.label.label-info.pull-right variance-label]
-             [:span.label.label-danger.pull-right error-label]]]
+             [:p {:on-click #(om/update-state! owner :visible? not)}
+              (format-title number operation)]]
+            [:.col-sm-4.stats
+             [:span.label.label-info (format-variance variance)]
+             [:span.label.label-danger (format-error mean-error)]]]
            [:.row {:class (when-not visible? "hidden")}
-            [:div {:dangerouslySetInnerHTML {:__html graph}}]]])))))
+            [:.col-sm-4
+             {:dangerouslySetInnerHTML {:__html graph}}]
+            [:.col-sm-8
+             [:table.table.table-condensed
+              [:thead [:tr (for [col-name ["Operation" "Error" "Variance"]]
+                             [:th col-name])]]
+              [:tbody
+               (for [[mutation {variance :variance its-error :mean-error}] mutations-tried
+                     :let [best? (= its-error mean-error)]]
+                 [:tr {:class (when best? "success")}
+                  [:td (mutation-view mutation)]
+                  [:td (format-error its-error)]
+                  [:td (format-variance variance)]])]]]]])))))
 
 (defn solvings-panel [{:keys [solvings] :as cursor}]
   (reify
     om/IRender
     (render [_]
       (html
-        [:.panel.panel-default
-         [:.panel-heading "Mutations"]
-         [:ul.list-group
-          (for [i (range (count solvings))
-                :let [[solving graph] (nth solvings i)]]
-            (om/build solving-block
-                      {:number (inc i)
-                       :solving solving
-                       :graph graph}
-                      {:key :number}))]]))))
+        [:.solvings
+         [:.panel.panel-default
+          [:.panel-heading "Mutations"]
+          [:ul.list-group
+           (for [i (range (count solvings))
+                 :let [[solving graph] (nth solvings i)]]
+             (om/build solving-block
+                       {:number  (inc i)
+                        :solving solving
+                        :graph   graph}
+                       {:react-key i}))]]]))))
 
 (defn app [{:keys [connection running? solvings] :as cursor} owner]
   (reify
@@ -133,7 +163,7 @@
     om/IRenderState
     (render-state [_ {:keys [start-chan]}]
       (html
-        [:.container
+        [:.container.app
          [:.row-fluid
           [:.col-md-12
            (om/build settings-panel {:start-chan start-chan :running? running?})]]

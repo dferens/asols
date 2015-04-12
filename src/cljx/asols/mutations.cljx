@@ -7,17 +7,17 @@
 
 
 (defn- add-neurons-mutations
-  "Return mutations for adding new neurons to existing hidden layers
-  with 1 random edge with new neuron"
+  "Return mutations for adding new neurons to existing hidden layers.
+  Each new neuron will be fully connected to prev & next layers."
   [net]
   (for [index (range (count (:hidden-layers net)))]
-    (let [[net new-node] (network/add-node net index)
-          prev-layer (nth (network/layers net) index)
-          next-layer (nth (network/layers net) (+ index 2))]
+    (let [prev-layer (nth (network/layers net) index)
+          next-layer (nth (network/layers net) (+ index 2))
+          [new-net new-node] (network/add-node net index)]
       {:operation :add-neuron
-       :network (-> net
-                    (network/add-edge (rand-nth prev-layer) new-node)
-                    (network/add-edge new-node (rand-nth next-layer)))
+       :network (as-> new-net $
+                      (reduce #(network/add-edge %1 %2 new-node) $ prev-layer)
+                      (reduce #(network/add-edge %1 new-node %2) $ next-layer))
        :added-neuron new-node})))
 
 (defn- add-edges-mutations
@@ -36,7 +36,8 @@
 (defn- remove-edges-mutations
   "Return mutations for deletion of all net edges"
   [net]
-  (for [[edge _] (:edges net)]
+  (for [[edge _] (:edges net)
+        :when (not (network/single-edge? net edge))]
     {:operation :del-edge
      :network (network/del-edge net edge)
      :deleted-edge edge}))
@@ -49,4 +50,4 @@
   (concat
     (add-neurons-mutations net)
     (add-edges-mutations net)
-    #_(remove-edges-mutations net)))
+    (remove-edges-mutations net)))

@@ -30,7 +30,7 @@
               start-net (solver/create-start-net 2 1)]
           (loop [net start-net
                  current-error nil]
-            (let [{:keys [mutation mean-error] :as solving} (solver/step-net net dataset 5 opts)
+            (let [{:keys [mutation mean-error] :as solving} (solver/step-net net dataset 3 opts)
                   ]
               (if (or (nil? current-error)
                       (< mean-error current-error))
@@ -41,9 +41,6 @@
                   (prn "Sent step")
                   (recur (:network mutation) mean-error))
                 (do
-                  (>! chan {:command :step
-                            :solving solving
-                            :graph (graphics/render-network (:network mutation))})
                   (>! chan {:command :finished})
                   (prn "Finished")))))))
       (recur (<! chan)))))

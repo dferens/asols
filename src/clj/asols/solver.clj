@@ -3,7 +3,11 @@
             [asols.trainer :as trainer]
             [asols.mutations :as mutations]))
 
-(defrecord Solving [mutation mean-error variance])
+(defrecord Solving [mutation mean-error variance mutations-tried])
+
+(defn- solving
+  [mutation mean-error variance mutations-tried]
+  (->Solving mutation mean-error variance mutations-tried))
 
 (defn create-start-net
   [inputs-count outputs-count]
@@ -19,7 +23,8 @@
 (defn step-net
   [net dataset times opts]
   (let [train #(trainer/calc-mean-error % dataset times opts)
-        errors (into {} (for [m (mutations/get-mutations net)]
-                          [m (train (:network m))]))
-        [mutation {:keys [mean-error variance]}] (apply min-key #(:mean-error (val %)) errors)]
-    (->Solving mutation mean-error variance)))
+        mutations-tried (into {} (for [m (mutations/get-mutations net)]
+                                   [m (train (:network m))]))
+        best-case (apply min-key #(:mean-error (val %)) mutations-tried)
+        [mutation {:keys [mean-error variance]}] best-case]
+    (solving mutation mean-error variance mutations-tried)))

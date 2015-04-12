@@ -41,6 +41,7 @@
   (in-edges [this node])
   (out-edges [this node])
   (has-edge? [this node-from node-to])
+  (single-edge? [this edge])
   (get-weight
     [this edge]
     "Returns weight of given edge"))
@@ -64,6 +65,18 @@
       edge))
   (has-edge? [_ node-from node-to]
     (contains? edges [node-from node-to]))
+  (single-edge? [this [node-from node-to]]
+    (let [layer-from (->> (layers this)
+                          (filter #(some #{node-from} %))
+                          (first))
+          layer-to (->> (layers this)
+                        (filter #(some #{node-to} %))
+                        (first))
+          edges-between (for [node-a layer-from
+                              node-b layer-to
+                              :when (has-edge? this node-a node-b)]
+                          [node-a node-b])]
+      (nil? (second edges-between))))
   (get-weight [_ edge]
     (edges edge)))
 
