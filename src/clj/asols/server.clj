@@ -34,13 +34,15 @@
                   start-net (solver/create-start-net 2 1)]
               (loop [net start-net
                      current-error nil]
-                (let [solving (solver/step-net net dataset 3 train-opts mutation-opts)
-                      {:keys [mutation mean-error]} solving]
-                  (>! chan (worker/step-command solving))
-                  (prn "Sent step")
-                  (if (or (nil? current-error)
-                          (< mean-error current-error))
-                    (recur (:network mutation) mean-error)
+                (let [solving (solver/step-net net dataset train-opts mutation-opts)
+                      {:keys [mutation mean-error]} solving
+                      better? (or (nil? current-error)
+                                  (< mean-error current-error))]
+                  (if (and better? (> mean-error 1E-4))
+                    (do
+                      (>! chan (worker/step-command solving))
+                      (prn "Sent step")
+                      (recur (:network mutation) mean-error))
                     (>! chan (worker/finished-command)))))))
           (recur (<! chan)))))))
 

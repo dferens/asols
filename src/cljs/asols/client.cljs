@@ -13,8 +13,8 @@
 (defonce app-state
   (atom {:connection nil
          :running?   false
-         :settings   {:train-opts    (TrainOpts. 0.3 1.0 2000)
-                      :mutation-opts (MutationOpts. true false)}
+         :settings   {:train-opts    (TrainOpts. 0.3 0.9 5E-4 1000)
+                      :mutation-opts (MutationOpts. 5 true true)}
          :solvings   []}))
 
 (defn- checkbox
@@ -53,7 +53,7 @@
   (reify
     om/IRender
     (render [_]
-      (let [[label-width field-width] [6 6]
+      (let [[label-width field-width] [4 8]
             label-class (str "col-sm-" label-width)
             input-class (str "col-sm-" field-width)]
         (html
@@ -67,6 +67,8 @@
                            {:class label-class} {:class input-class})
                (text-input settings [:train-opts :momentum] "Momentum"
                            {:class label-class} {:class input-class})
+               (text-input settings [:train-opts :weight-decay] "Weight decay"
+                           {:class label-class} {:class input-class})
                (text-input settings [:train-opts :iter-count] "Iterations"
                            {:class label-class} {:class input-class})
 
@@ -79,6 +81,8 @@
                   "Start"]]]]]
              [:.col-sm-6
               [:form.form-horizontal
+               (text-input settings [:mutation-opts :repeat-times] "Repeat times"
+                           {:class "col-sm-4"} {:class "col-sm-8"})
                (checkbox settings [:mutation-opts :remove-edges?]
                          "Remove edges?")
                (checkbox settings [:mutation-opts :remove-nodes?]

@@ -5,9 +5,9 @@
 (def ^:private commands
   #{::start ::step ::finished})
 
-(defrecord TrainOpts [learning-rate momentum iter-count])
+(defrecord TrainOpts [learning-rate momentum weight-decay iter-count])
 
-(defrecord MutationOpts [remove-edges? remove-nodes?])
+(defrecord MutationOpts [repeat-times remove-edges? remove-nodes?])
 
 (defrecord Solving [mutation mean-error variance mutations-tried])
 

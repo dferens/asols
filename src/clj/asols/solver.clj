@@ -26,10 +26,10 @@
     (when (:remove-edges? opts) (mutations/remove-edges-mutations net))))
 
 (defn step-net
-  [net dataset times train-opts mutation-opts]
+  [net dataset train-opts {:keys [repeat-times] :as mutation-opts}]
   {:pre [(instance? TrainOpts train-opts)
          (instance? MutationOpts mutation-opts)]}
-  (let [train #(trainer/calc-mean-error % dataset times train-opts)
+  (let [train #(trainer/calc-mean-error % dataset repeat-times train-opts)
         mutations-tried (into {} (for [m (get-mutations net mutation-opts)]
                                    [m (train (:network m))]))
         best-case (apply min-key #(:mean-error (val %)) mutations-tried)
