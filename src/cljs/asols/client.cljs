@@ -6,6 +6,7 @@
             [goog.string :as gstring]
             [goog.string.format]
             [figwheel.client :as fw]
+            [asols.mutations :as mutations]
             [asols.worker :refer [TrainOpts MutationOpts] :as worker])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
@@ -90,20 +91,20 @@
 
 (defmulti mutation-view :operation)
 
-(defmethod mutation-view :add-neuron [m]
+(defmethod mutation-view ::mutations/add-neuron [m]
   [:p "Added node "
    [:span.label.label-primary (name (:added-neuron m))]])
 
-(defmethod mutation-view :add-edge [m]
+(defmethod mutation-view ::mutations/add-edge [m]
   (let [[node-from node-to] (:added-edge m)]
     [:p "Added edge "
      [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
 
-(defmethod mutation-view :del-neuron [m]
+(defmethod mutation-view ::mutations/del-neuron [m]
   [:p "Removed node "
    [:span.label.label-primary (name (:deleted-neuron m))]])
 
-(defmethod mutation-view :del-edge [m]
+(defmethod mutation-view ::mutations/del-edge [m]
   (let [[node-from node-to] (:deleted-edge m)]
     [:p "Removed edge "
      [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
