@@ -2,18 +2,16 @@
   (:require [om.core :as om]
             [sablono.core :refer-macros [html]]
             [chord.client :refer [ws-ch]]
-            [cljs.core.async :refer [<! >! chan]]
+            [cljs.core.async :refer [<! >! chan close!]]
             [goog.string :as gstring]
             [goog.string.format]
-            [asols.worker :as worker]
-            [figwheel.client :as fw])
+            [figwheel.client :as fw]
+            [asols.worker :as worker])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
-
-(enable-console-print!)
 
 
 (defonce app-state
-  (atom {:connection :nil
+  (atom {:connection nil
          :running? false
          :settings {:learning-rate 0.3
                     :momentum 1.0
@@ -182,13 +180,15 @@
                                                     :remove-edges? (:remove-edges? settings)
                                                     :remove-nodes? (:remove-nodes settings)))
                (recur))
-      (go-loop [{message :message} (<! connection)]
-               (.debug js/console (str "Received:" (pr-str message)))
-               (case (:command message)
-                 ::worker/step (let [{:keys [solving graph]} message]
-                                (om/transact! solvings #(conj % [solving graph])))
-                 ::worker/finished (om/update! cursor :running? false))
-               (recur (<! connection))))
+      (go-loop [frame (<! connection)]
+               (if-not (nil? frame)
+                 (let [{message :message} frame]
+                   (.debug js/console (str "Received:" (pr-str message)))
+                   (case (:command message)
+                     ::worker/step (let [{:keys [solving graph]} message]
+                                     (om/transact! solvings #(conj % [solving graph])))
+                     ::worker/finished (om/update! cursor :running? false))
+                   (recur (<! connection))))))
 
     om/IRenderState
     (render-state [_ {:keys [start-chan]}]
@@ -203,16 +203,27 @@
           [:.col-md-12
            (om/build solvings-panel {:solvings solvings})]]]))))
 
+(defn- start []
+  (.debug js/console "Starting app")
+  (go (let [ws-chan (ws-ch "ws://localhost:8000/ws" {:format :transit-json})
+            {connection :ws-channel error :error} (<! ws-chan)]
+        (if error
+          (do
+            (.error js/console "Failed to connect:")
+            (.error js/console error))
+          (do
+            (.log js/console "Connected to websocket channel")
+            (swap! app-state assoc :connection connection)
+            (om/root app app-state {:target (.-body js/document)}))))))
 
-(go (let [ws-chan (ws-ch "ws://localhost:8000/ws" {:format :transit-json})
-          {connection :ws-channel error :error} (<! ws-chan)]
-      (if error
-        (do
-          (.error js/console "Failed to connect:")
-          (.error js/console error))
-        (do
-          (.log js/console "Connected to websocket channel")
-          (swap! app-state assoc :connection connection)
-          (om/root app app-state {:target (.-body js/document)})))))
+(defn- shutdown []
+  (.debug js/console "Shutdown....")
+  (om/detach-root (.-body js/document))
+  (when-let [conn (:connection @app-state)]
+    (close! conn)))
 
-(fw/start {:websocket-url "ws://localhost:3449/figwheel-ws"})
+(enable-console-print!)
+(start)
+(fw/start {:websocket-url "ws://localhost:3449/figwheel-ws"
+           :on-jsload #(do (shutdown) (start))})
+

@@ -21,25 +21,28 @@
 (defn ws-handler [req]
   (with-channel req chan {:format :transit-json}
     (prn "Client connected")
-    (go-loop [{:keys [message]} (<! chan)]
-      (prn "Received:" message)
-      (if (= (:command message) ::worker/start)
-        (let [{:keys [train-opts mutation-opts]} message
-              train-opts (trainer/map->TrainOpts train-opts)
-              mutation-opts (solver/map->MutationOpts mutation-opts)
-              dataset [[[0 0] [0]] [[1 1] [0]] [[1 0] [1]] [[0 1] [1]]]
-              start-net (solver/create-start-net 2 1)]
-          (loop [net start-net
-                 current-error nil]
-            (let [solving (solver/step-net net dataset 3 train-opts mutation-opts)
-                  {:keys [mutation mean-error]} solving]
-              (>! chan (worker/step-command solving))
-              (prn "Sent step")
-              (if (or (nil? current-error)
-                      (< mean-error current-error))
-                (recur (:network mutation) mean-error)
-                (>! chan (worker/finished-command)))))))
-      (recur (<! chan)))))
+    (go-loop [frame (<! chan)]
+      (if (nil? frame)
+        (prn "Client disconnected")
+        (let [{message :message} frame]
+          (prn "Received:" message)
+          (if (= (:command message) ::worker/start)
+            (let [{:keys [train-opts mutation-opts]} message
+                  train-opts (trainer/map->TrainOpts train-opts)
+                  mutation-opts (solver/map->MutationOpts mutation-opts)
+                  dataset [[[0 0] [0]] [[1 1] [0]] [[1 0] [1]] [[0 1] [1]]]
+                  start-net (solver/create-start-net 2 1)]
+              (loop [net start-net
+                     current-error nil]
+                (let [solving (solver/step-net net dataset 3 train-opts mutation-opts)
+                      {:keys [mutation mean-error]} solving]
+                  (>! chan (worker/step-command solving))
+                  (prn "Sent step")
+                  (if (or (nil? current-error)
+                          (< mean-error current-error))
+                    (recur (:network mutation) mean-error)
+                    (>! chan (worker/finished-command)))))))
+          (recur (<! chan)))))))
 
 (defroutes app-routes
   (GET "/" [] index)
