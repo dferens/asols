@@ -28,8 +28,8 @@
           (prn "Received:" message)
           (if (= (:command message) ::worker/start)
             (let [{:keys [train-opts mutation-opts]} message
-                  train-opts (trainer/map->TrainOpts train-opts)
-                  mutation-opts (solver/map->MutationOpts mutation-opts)
+                  train-opts (worker/map->TrainOpts train-opts)
+                  mutation-opts (worker/map->MutationOpts mutation-opts)
                   dataset [[[0 0] [0]] [[1 1] [0]] [[1 0] [1]] [[0 1] [1]]]
                   start-net (solver/create-start-net 2 1)]
               (loop [net start-net

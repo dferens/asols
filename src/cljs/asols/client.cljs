@@ -6,19 +6,16 @@
             [goog.string :as gstring]
             [goog.string.format]
             [figwheel.client :as fw]
-            [asols.worker :as worker])
+            [asols.worker :refer [TrainOpts MutationOpts] :as worker])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
 
 (defonce app-state
   (atom {:connection nil
-         :running? false
-         :settings {:learning-rate 0.3
-                    :momentum 1.0
-                    :iter-count 2000
-                    :remove-edges? true
-                    :remove-nodes? false}
-         :solvings []}))
+         :running?   false
+         :settings   {:train-opts    (TrainOpts. 0.3 1.0 2000)
+                      :mutation-opts (MutationOpts. true false)}
+         :solvings   []}))
 
 (defn- checkbox
   "Simple checkbox which binds its value to path in cursor"
@@ -57,8 +54,8 @@
     om/IRender
     (render [_]
       (let [[label-width field-width] [6 6]
-            label-params {:class (str "col-sm-" label-width)}
-            input-params {:class (str "col-sm-" field-width)}]
+            label-class (str "col-sm-" label-width)
+            input-class (str "col-sm-" field-width)]
         (html
           [:.panel.panel-default.settings
            [:.panel-heading "Settings"]
@@ -66,12 +63,15 @@
             [:.row
              [:.col-sm-6
               [:form.form-horizontal
-               (text-input settings [:learning-rate] "Learning rate" label-params input-params)
-               (text-input settings [:momentum] "Momentum" label-params input-params)
-               (text-input settings [:iter-count] "Iterations" label-params input-params)
+               (text-input settings [:train-opts :learning-rate] "Learning rate"
+                           {:class label-class} {:class input-class})
+               (text-input settings [:train-opts :momentum] "Momentum"
+                           {:class label-class} {:class input-class})
+               (text-input settings [:train-opts :iter-count] "Iterations"
+                           {:class label-class} {:class input-class})
 
                [:.form-group
-                [:div {:class [input-params (str "col-sm-offset-" label-width)]}
+                [:div {:class (str input-class " col-sm-offset-" label-width)}
                  [:button.btn.btn-primary.btn-block
                   {:type     "button"
                    :disabled (when running? "disabled")
@@ -79,8 +79,10 @@
                   "Start"]]]]]
              [:.col-sm-6
               [:form.form-horizontal
-               (checkbox settings [:remove-edges?] "Remove edges?")
-               (checkbox settings [:remove-nodes?] "Remove nodes?")]]]]])))))
+               (checkbox settings [:mutation-opts :remove-edges?]
+                         "Remove edges?")
+               (checkbox settings [:mutation-opts :remove-nodes?]
+                         "Remove nodes?")]]]]])))))
 
 (defmulti mutation-view :operation)
 
@@ -166,11 +168,14 @@
                (<! (om/get-state owner :start-chan))
                (om/update! cursor :running? true)
                (om/update! cursor :solvings [])
-               (>! connection (worker/start-command :learning-rate (js/parseFloat (:learning-rate settings))
-                                                    :momentum (js/parseFloat (:momentum settings))
-                                                    :iter-count (js/parseInt (:iter-count settings))
-                                                    :remove-edges? (:remove-edges? settings)
-                                                    :remove-nodes? (:remove-nodes? settings)))
+               (let [
+                     {:keys [train-opts mutation-opts]} @settings
+                     train-opts (-> (om/value train-opts)
+                                    (update-in [:learning-rate] js/parseFloat)
+                                    (update-in [:momentum] js/parseFloat)
+                                    (update-in [:iter-count] js/parseInt))]
+                 (->> (worker/start-command train-opts (om/value mutation-opts))
+                      (>! connection)))
                (recur))
       (go-loop [frame (<! connection)]
                (if-not (nil? frame)

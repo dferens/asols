@@ -1,6 +1,8 @@
 (ns asols.trainer
   (:require [clojure.core.matrix.stats :refer [sum sum-of-squares mean variance]]
-            [asols.network :as network]))
+            [asols.worker]
+            [asols.network :as network])
+  (:import (asols.worker TrainOpts)))
 
 (defn- act-fn
   "Sigmoid activation function"
@@ -78,8 +80,6 @@
       (zipmap (:output-layer net) output-deltas)
       (reverse layers-to-process))))
 
-(defrecord TrainOpts [learning-rate momentum iter-count])
-
 (defn- modify-weights
   [net nodes-values deltas opts]
   (reduce
@@ -131,10 +131,11 @@
 
 (defn calc-mean-error
   "Returns mean error & variance after training given net @times times"
-  [net dataset times opts]
+  [net dataset times train-opts]
+  {:pre [(instance? TrainOpts train-opts)]}
   (let [net-errors (into {} (for [_ (range times)
                                   :let [new-net (-> (network/reset-weights net)
-                                                    (train dataset opts))
+                                                    (train dataset train-opts))
                                         new-error (calc-error new-net dataset)]]
                                [new-error new-net]))]
     {:mean-error (mean (keys net-errors))

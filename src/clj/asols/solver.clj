@@ -1,11 +1,9 @@
 (ns asols.solver
   (:require [asols.network :as network]
             [asols.trainer :as trainer]
-            [asols.mutations :as mutations]))
-
-(defrecord Solving [mutation mean-error variance mutations-tried])
-
-(defrecord MutationOpts [remove-edges? remove-nodes?])
+            [asols.mutations :as mutations]
+            [asols.worker])
+  (:import (asols.worker TrainOpts Solving MutationOpts)))
 
 (defn create-start-net
   [inputs-count outputs-count]
@@ -29,9 +27,11 @@
 
 (defn step-net
   [net dataset times train-opts mutation-opts]
+  {:pre [(instance? TrainOpts train-opts)
+         (instance? MutationOpts mutation-opts)]}
   (let [train #(trainer/calc-mean-error % dataset times train-opts)
         mutations-tried (into {} (for [m (get-mutations net mutation-opts)]
                                    [m (train (:network m))]))
         best-case (apply min-key #(:mean-error (val %)) mutations-tried)
         [mutation {:keys [mean-error variance]}] best-case]
-    (->Solving mutation mean-error variance mutations-tried)))
+    (Solving. mutation mean-error variance mutations-tried)))
