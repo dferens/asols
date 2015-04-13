@@ -20,13 +20,45 @@
                     :remove-nodes? false}
          :solvings []}))
 
+(defn- checkbox
+  "Simple checkbox which binds its value to path in cursor"
+  [cursor path label-text]
+  {:pre [(om/cursor? cursor)
+         (coll? path)
+         (string? label-text)]}
+  [:.form-group
+   [:.col-sm-12
+    [:label.checkbox
+     [:input.custom-checkbox
+      {:type      "checkbox"
+       :checked   (when (get-in cursor path) "checked")
+       :on-change #(om/update! cursor path (.. % -target -checked))}]
+     [:span.icons
+      [:span.icon-checked]
+      [:span.icon-unchecked]]
+     label-text]]])
+
+(defn- text-input
+  "Simple text input which binds its value to path in cursor"
+  [cursor path label-text label-params input-params]
+  {:pre [(om/cursor? cursor)
+         (coll? path)
+         (string? label-text)
+         (map? label-params) (map? input-params)]}
+  [:.form-group
+   [:label.control-label label-params label-text]
+   [:div input-params
+    [:input.form-control
+     {:value (get-in cursor path)
+      :on-change #(om/update! cursor path (.. % -target -value))}]]])
+
 (defn settings-panel [{:keys [start-chan running? settings]} owner]
   (reify
     om/IRender
     (render [_]
       (let [[label-width field-width] [6 6]
-            label-class (str "col-sm-" label-width)
-            field-class (str "col-sm-" field-width)]
+            label-params {:class (str "col-sm-" label-width)}
+            input-params {:class (str "col-sm-" field-width)}]
         (html
           [:.panel.panel-default.settings
            [:.panel-heading "Settings"]
@@ -34,32 +66,12 @@
             [:.row
              [:.col-sm-6
               [:form.form-horizontal
-               [:.form-group
-                [:label.control-label {:class label-class :for :input-lr}
-                 "Learning rate"]
-                [:div {:class field-class}
-                 [:input.form-control#input-lr
-                  {:value     (:learning-rate settings)
-                   :on-change #(om/update! settings :learning-rate (.. % -target -value))}]]]
+               (text-input settings [:learning-rate] "Learning rate" label-params input-params)
+               (text-input settings [:momentum] "Momentum" label-params input-params)
+               (text-input settings [:iter-count] "Iterations" label-params input-params)
 
                [:.form-group
-                [:label.control-label {:class label-class :for :input-momentum}
-                 "Momentum"]
-                [:div {:class field-class}
-                 [:input.form-control#input-momentum
-                  {:value     (:momentum settings)
-                   :on-change #(om/update! settings :momentum (.. % -target -value))}]]]
-
-               [:.form-group
-                [:label.control-label {:class label-class :for :input-iters}
-                 "Iterations"]
-                [:div {:class field-class}
-                 [:input.form-control#input-iters
-                  {:value     (:iter-count settings)
-                   :on-change #(om/update! settings :iter-count (.. % -target -value))}]]]
-
-               [:.form-group
-                [:div {:class [field-class (str "col-sm-offset-" label-width)]}
+                [:div {:class [input-params (str "col-sm-offset-" label-width)]}
                  [:button.btn.btn-primary.btn-block
                   {:type     "button"
                    :disabled (when running? "disabled")
@@ -67,28 +79,8 @@
                   "Start"]]]]]
              [:.col-sm-6
               [:form.form-horizontal
-               [:.form-group
-                [:.col-sm-12
-                 [:label.checkbox
-                  [:input.custom-checkbox
-                   {:type      "checkbox"
-                    :checked   (when (:remove-edges? settings) "checked")
-                    :on-change #(om/update! settings :remove-edges? (.. % -target -checked))}]
-                  [:span.icons
-                   [:span.icon-checked]
-                   [:span.icon-unchecked]]
-                  "Remove edges?"]]]
-               [:.form-group
-                [:.col-sm-12
-                 [:label.checkbox
-                  [:input.custom-checkbox
-                   {:type      "checkbox"
-                    :checked   (when (:remove-nodes? settings) "checked")
-                    :on-change #(om/update! settings :remove-nodes? (.. % -target -checked))}]
-                  [:span.icons
-                   [:span.icon-checked]
-                   [:span.icon-unchecked]]
-                  "Remove nodes?"]]]]]]]])))))
+               (checkbox settings [:remove-edges?] "Remove edges?")
+               (checkbox settings [:remove-nodes?] "Remove nodes?")]]]]])))))
 
 (defmulti mutation-view :operation)
 
@@ -178,7 +170,7 @@
                                                     :momentum (js/parseFloat (:momentum settings))
                                                     :iter-count (js/parseInt (:iter-count settings))
                                                     :remove-edges? (:remove-edges? settings)
-                                                    :remove-nodes? (:remove-nodes settings)))
+                                                    :remove-nodes? (:remove-nodes? settings)))
                (recur))
       (go-loop [frame (<! connection)]
                (if-not (nil? frame)
