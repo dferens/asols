@@ -36,19 +36,19 @@
       [:span.icon-unchecked]]
      label-text]]])
 
-(defn- text-input
-  "Simple text input which binds its value to path in cursor"
-  [cursor path label-text label-params input-params]
-  {:pre [(om/cursor? cursor)
-         (coll? path)
-         (string? label-text)
-         (map? label-params) (map? input-params)]}
-  [:.form-group
-   [:label.control-label label-params label-text]
-   [:div input-params
-    [:input.form-control
-     {:value (get-in cursor path)
-      :on-change #(om/update! cursor path (.. % -target -value))}]]])
+
+(defn- input
+  ([cursor path]
+    (input cursor path identity))
+  ([cursor path clean-fn]
+   [:input.form-control
+    {:value     (get-in cursor path)
+     :on-change #(let [value (.. % -target -value)
+                       cleaned-value (clean-fn value)
+                       final-value (if (js/isNaN cleaned-value)
+                                     value
+                                     cleaned-value)]
+                  (om/update! cursor path final-value))}]))
 
 (defn settings-panel [{:keys [start-chan running? settings]} owner]
   (reify
@@ -64,14 +64,23 @@
             [:.row
              [:.col-sm-6
               [:form.form-horizontal
-               (text-input settings [:train-opts :learning-rate] "Learning rate"
-                           {:class label-class} {:class input-class})
-               (text-input settings [:train-opts :momentum] "Momentum"
-                           {:class label-class} {:class input-class})
-               (text-input settings [:train-opts :weight-decay] "Weight decay"
-                           {:class label-class} {:class input-class})
-               (text-input settings [:train-opts :iter-count] "Iterations"
-                           {:class label-class} {:class input-class})
+
+               [:.form-group
+                [:label.control-label {:class label-class} "Learning rate"]
+                [:div {:class input-class}
+                 (input settings [:train-opts :learning-rate] js/parseFloat)]]
+               [:.form-group
+                [:label.control-label {:class label-class} "Momentum"]
+                [:div {:class input-class}
+                 (input settings [:train-opts :momentum] js/parseFloat)]]
+               [:.form-group
+                [:label.control-label {:class label-class} "Weight decay"]
+                [:div {:class input-class}
+                 (input settings [:train-opts :weight-decay] js/parseFloat)]]
+               [:.form-group
+                [:label.control-label {:class label-class} "Iterations"]
+                [:div {:class input-class}
+                 (input settings [:train-opts :iter-count] js/parseInt)]]
 
                [:.form-group
                 [:div {:class (str input-class " col-sm-offset-" label-width)}
@@ -82,8 +91,11 @@
                   "Start"]]]]]
              [:.col-sm-6
               [:form.form-horizontal
-               (text-input settings [:mutation-opts :repeat-times] "Repeat times"
-                           {:class "col-sm-4"} {:class "col-sm-8"})
+               [:.form-group
+                [:label.control-label {:class label-class} "Repeat times"]
+                [:div {:class input-class}
+                 (input settings [:mutation-opts :repeat-times] js/parseInt)]]
+
                (checkbox settings [:mutation-opts :remove-edges?]
                          "Remove edges?")
                (checkbox settings [:mutation-opts :remove-nodes?]
@@ -109,7 +121,10 @@
     [:p "Removed edge "
      [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
 
-(defn solving-block [{:keys [number solving graph]} owner]
+(defmethod mutation-view ::mutations/add-layer [m]
+  [:p "Added hidden layer"])
+
+(defn solving-block [{:keys [solving graph]} owner]
   (reify
     om/IInitState
     (init-state [_]
@@ -173,14 +188,8 @@
                (<! (om/get-state owner :start-chan))
                (om/update! cursor :running? true)
                (om/update! cursor :solvings [])
-               (let [
-                     {:keys [train-opts mutation-opts]} @settings
-                     train-opts (-> (om/value train-opts)
-                                    (update-in [:learning-rate] js/parseFloat)
-                                    (update-in [:momentum] js/parseFloat)
-                                    (update-in [:iter-count] js/parseInt))]
-                 (->> (worker/start-command train-opts (om/value mutation-opts))
-                      (>! connection)))
+               (let [{:keys [train-opts mutation-opts]} @settings]
+                 (>! connection (worker/start-command train-opts mutation-opts)))
                (recur))
       (go-loop [frame (<! connection)]
                (if-not (nil? frame)

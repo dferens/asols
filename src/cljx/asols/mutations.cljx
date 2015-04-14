@@ -54,3 +54,14 @@
     {:operation ::del-edge
      :network (network/del-edge net edge)
      :deleted-edge edge}))
+
+(defn add-layers-mutations
+  "Returns mutations for adding new hidden layers to net"
+  [net]
+  (let [next-layer-i (count (:hidden-layers net))
+        split-layer (nth (network/layers net) next-layer-i)
+        node-splitter #(network/split-node %1 %2 (dec next-layer-i))]
+    [{:operation ::add-layer
+      :network  (as-> net $
+                      (network/add-layer $ (dec next-layer-i))
+                      (reduce node-splitter $ split-layer))}]))

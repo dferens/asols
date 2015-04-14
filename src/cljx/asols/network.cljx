@@ -99,8 +99,12 @@
 
 (defn add-layer
   "Adds new hidden layer to network, returns new network"
-  [network]
-  (update-in network [:hidden-layers] conj (hidden-layer)))
+  ([network]
+    (add-layer network 0))
+  ([network index]
+   (let [[before-layers after-layers] (split-at index (:hidden-layers network))
+         new-layers (concat before-layers [(hidden-layer)] after-layers)]
+     (assoc network :hidden-layers (vec new-layers)))))
 
 (defn add-node
   "Adds new node to `layer-i`th hidden layer of network, returns new network
@@ -124,8 +128,10 @@
 
 (defn add-edge
   "Adds new edge to network, returns new network"
-  [network node-from node-to]
-  (update-in network [:edges] assoc [node-from node-to] (rand-weight network)))
+  ([network node-from node-to]
+    (add-edge network node-from node-to (rand-weight network)))
+  ([network node-from node-to weight]
+   (update-in network [:edges] assoc [node-from node-to] weight)))
 
 (defn set-weight
   "Sets new weight for given edge, returns new network"
@@ -136,6 +142,27 @@
   "Removes edge from network, returns new network"
   [network edge]
   (update-in network [:edges] dissoc edge))
+
+(defn move-edge
+  [network edge [node-from node-to]]
+  (let [weight (get-weight network edge)]
+    (-> network
+        (del-edge edge)
+        (add-edge node-from node-to weight))))
+
+(defn split-node
+  "docstring"
+  [network node target-layer-i]
+  (let [target-layer-nodes (into #{} (nth (layers network) (inc target-layer-i)))
+        edges-to-move (->> (in-edges network node)
+                           (remove (fn [[node _]] (target-layer-nodes node))))
+        [new-net new-node] (add-node network target-layer-i)
+        edge-mover (fn [net e] (move-edge net e [(first e) new-node]))
+        edge-adder (fn [net node-to] (add-edge net new-node node-to))
+        next-layer (nth (layers new-net) (+ target-layer-i 2))]
+    (as-> new-net $
+          (reduce edge-mover $ edges-to-move)
+          (reduce edge-adder $ next-layer))))
 
 (defn reset-weights
   [network]

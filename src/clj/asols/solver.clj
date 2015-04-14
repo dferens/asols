@@ -23,7 +23,8 @@
     (mutations/add-edges-mutations net)
     (mutations/add-neurons-mutations net)
     (when (:remove-nodes? opts) (mutations/remove-neurons-mutations net))
-    (when (:remove-edges? opts) (mutations/remove-edges-mutations net))))
+    (when (:remove-edges? opts) (mutations/remove-edges-mutations net))
+    (mutations/add-layers-mutations net)))
 
 (defn step-net
   [net dataset train-opts {:keys [repeat-times] :as mutation-opts}]
