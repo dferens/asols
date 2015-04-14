@@ -123,8 +123,8 @@
                      (-> (network/reset-weights net)
                          (train dataset train-opts)
                          (calc-error dataset)))]
-    {:mean-error (mean net-errors)
-     :variance (variance net-errors)}))
+    [(mean net-errors)
+     (variance net-errors)]))
 
 (defn activate
   "Returns output vector of after passing given input vector on net's inputs"

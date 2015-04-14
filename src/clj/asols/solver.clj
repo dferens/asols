@@ -2,8 +2,9 @@
   (:require [asols.network :as network]
             [asols.trainer :as trainer]
             [asols.mutations :as mutations]
-            [asols.worker])
-  (:import (asols.worker TrainOpts Solving MutationOpts)))
+            [asols.worker]
+            [asols.graphics :as graphics])
+  (:import (asols.worker TrainOpts SolvingCase Solving MutationOpts)))
 
 (defn create-start-net
   [inputs-count outputs-count]
@@ -32,10 +33,13 @@
          (instance? MutationOpts mutation-opts)]}
   (let [started (. System (nanoTime))
         train #(trainer/calc-mean-error % dataset repeat-times train-opts)
-        mutations-tried (into {} (for [m (get-mutations net mutation-opts)]
-                                   [m (train (:network m))]))
-        best-case (apply min-key #(:mean-error (val %)) mutations-tried)
-        ms-took (/ (double (- (. System (nanoTime)) started)) 1E6)
-        [mutation {:keys [mean-error variance]}] best-case
-        _ (prn ms-took)]
-    (Solving. mutation mean-error variance mutations-tried ms-took)))
+        mutations (get-mutations net mutation-opts)
+        cases (vec
+                (for [number (range (count mutations))
+                      :let [mut (nth mutations number)
+                            new-net (:network mut)
+                            [mean-error variance] (train new-net)
+                            graph (graphics/render-network new-net)]]
+                  (SolvingCase. number mut mean-error variance graph)))
+        ms-took (/ (double (- (. System (nanoTime)) started)) 1E6)]
+    (Solving. ms-took cases)))

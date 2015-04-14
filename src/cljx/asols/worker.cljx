@@ -9,7 +9,9 @@
 
 (defrecord MutationOpts [repeat-times remove-edges? remove-nodes?])
 
-(defrecord Solving [mutation mean-error variance mutations-tried ms-took])
+(defrecord SolvingCase [number mutation mean-error variance graph])
+
+(defrecord Solving [ms-took cases])
 
 (defn start-command
   [train-opts mutation-opts]
@@ -23,9 +25,7 @@
 (defn step-command
   [solving]
   {:pre [(instance? Solving solving)]}
-  {:command ::step
-   :solving solving
-   :graph   (graphics/render-network (:network (:mutation solving)))})
+  {:command ::step :solving solving})
 
 (defn finished-command []
   {:command ::finished})

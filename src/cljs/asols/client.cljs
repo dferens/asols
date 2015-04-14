@@ -119,44 +119,69 @@
 (defmethod mutation-view ::mutations/add-layer [m]
   [:p "Added hidden layer"])
 
-(defn format-time [solving]
-  (let [ms-took (:ms-took solving)]
-    (condp > ms-took
-      1E3 (str (int ms-took) " ms")
-      1E6 (gstring/format "%.2f sec" (/ ms-took 1E3)))))
+(defn format-error [error]
+  (gstring/format "%.5f" error))
 
-(defcomponent solving-block [{:keys [solving graph]} owner]
-  (init-state [_]
-    {:visible? false})
+(defn format-variance [variance]
+  (gstring/format "%.5f" variance))
+
+(defn format-time [ms-took]
+  (condp > ms-took
+    1E3 (str (int ms-took) " ms")
+    1E6 (gstring/format "%.2f sec" (/ ms-took 1E3))))
+
+(defcomponent solving-case-block [{:keys [solving-case hover-chan best?]}]
   (render [_]
+    (let [{:keys [mean-error variance]} solving-case]
+      (html
+        [:tr
+         {:class         (when best? "success")
+          :on-mouse-over #(go (>! hover-chan (:number @solving-case)))
+          :on-mouse-out  #(go (>! hover-chan :none))}
+         [:td (mutation-view (:mutation solving-case))]
+         [:td (format-error mean-error)]
+         [:td (format-variance variance)]]))))
+
+(defcomponent solving-block [{:keys [solving]} owner]
+  (init-state [_]
+    {:visible? false
+     :selected-case-num :none
+     :hover-chan (chan)})
+
+  (will-mount [_]
+    (let [hover-chan (om/get-state owner :hover-chan)]
+      (go-loop [selected-case-num (<! hover-chan)]
+        (om/set-state! owner :selected-case-num selected-case-num)
+        (recur (<! hover-chan)))))
+
+  (render-state [_ {:keys [visible? selected-case-num hover-chan]}]
     (html
-      (let [{:keys [visible?]} (om/get-state owner)
-            {:keys [mutation mean-error variance mutations-tried]} solving
-            format-error (partial gstring/format "%.5f")
-            format-variance (partial gstring/format "%.5f")]
+      (let [{:keys [ms-took cases]} solving
+            best-case (first (sort-by :mean-error cases))
+            preview-case (if (= selected-case-num :none)
+                           best-case
+                           (first (filter #(= (:number %) selected-case-num) cases)))]
         [:li.list-group-item.solving
          [:.row
           [:.col-sm-7
            [:p {:on-click #(om/update-state! owner :visible? not)}
-            (mutation-view mutation)]]
+            (mutation-view (:mutation best-case))]]
           [:.col-sm-5.stats
-           [:span.label.label-info (format-variance variance)]
-           [:span.label.label-danger (format-error mean-error)]
-           [:span.label.label-default (format-time solving)]]]
+           [:span.label.label-info (format-variance (:variance best-case))]
+           [:span.label.label-danger (format-error (:mean-error best-case))]
+           [:span.label.label-default (format-time ms-took)]]]
          [:.row {:class (when-not visible? "hidden")}
           [:.col-sm-5
-           {:dangerouslySetInnerHTML {:__html graph}}]
+           {:dangerouslySetInnerHTML {:__html (:graph preview-case)}}]
           [:.col-sm-7
-           [:table.table.table-condensed
-            [:thead [:tr (for [col-name ["Operation" "Error" "Variance"]]
-                           [:th col-name])]]
+           [:table.table.table-condensed.table-hover
+            [:thead [:tr [:th "Operation"] [:th "Error"] [:th "Variance"]]]
             [:tbody
-             (for [[mutation {variance :variance its-error :mean-error}] mutations-tried
-                   :let [best? (= its-error mean-error)]]
-               [:tr {:class (when best? "success")}
-                [:td (mutation-view mutation)]
-                [:td (format-error its-error)]
-                [:td (format-variance variance)]])]]]]]))))
+             (for [{err :mean-error :as case} cases]
+               (om/build solving-case-block
+                         {:solving-case case
+                          :hover-chan hover-chan
+                          :best? (= err (:mean-error best-case))}))]]]]]))))
 
 (defcomponent solvings-panel [{:keys [solvings] :as cursor}]
   (render [_]
@@ -165,12 +190,9 @@
        [:.panel.panel-default
         [:.panel-heading "Mutations"]
         [:ul.list-group
-         (for [i (range (count solvings))
-               :let [[solving graph] (nth solvings i)]]
+         (for [i (range (count solvings))]
            (om/build solving-block
-                     {:number  (inc i)
-                      :solving solving
-                      :graph   graph}
+                     {:number  (inc i) :solving (nth solvings i)}
                      {:react-key i}))]]])))
 
 (defcomponent app [{:keys [connection settings running? solvings] :as cursor} owner]
@@ -191,8 +213,8 @@
                (let [{message :message} frame]
                  (.debug js/console (str "Received command:" (:command message)))
                  (case (:command message)
-                   ::worker/step (let [{:keys [solving graph]} message]
-                                   (om/transact! solvings #(conj % [solving graph])))
+                   ::worker/step (let [{:keys [solving]} message]
+                                   (om/transact! solvings #(conj % solving)))
                    ::worker/finished (om/update! cursor :running? false))
                  (recur (<! connection))))))
   (render-state [_ {:keys [start-chan]}]

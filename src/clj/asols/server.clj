@@ -35,7 +35,8 @@
               (loop [net start-net
                      current-error nil]
                 (let [solving (solver/step-net net dataset train-opts mutation-opts)
-                      {:keys [mutation mean-error]} solving
+                      best-case (first (sort-by :mean-error (:cases solving)))
+                      {:keys [mean-error mutation]} best-case
                       better? (or (nil? current-error)
                                   (< mean-error current-error))]
                   (if (and better? (> mean-error 1E-4))
@@ -54,7 +55,7 @@
               :or {ip "localhost"
                    port 8080}}]
   (-> #'app-routes
-      (wrap-reload)
+      (wrap-reload ["src" "target/generated/src/"])
       (wrap-resource "public")
       (wrap-content-type)
       (wrap-not-modified)
