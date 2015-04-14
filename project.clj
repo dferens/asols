@@ -8,6 +8,7 @@
                  [org.clojure/clojurescript "0.0-2850"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [org.omcljs/om "0.8.8"]
+                 [prismatic/om-tools "0.3.11"]
                  [figwheel "0.2.6"]
                  [sablono "0.3.4"]
                  [ring/ring-core "1.3.2"]

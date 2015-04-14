@@ -1,5 +1,6 @@
 (ns asols.client
   (:require [om.core :as om]
+            [om-tools.core :refer-macros [defcomponent]]
             [sablono.core :refer-macros [html]]
             [chord.client :refer [ws-ch]]
             [cljs.core.async :refer [<! >! chan close!]]
@@ -36,7 +37,6 @@
       [:span.icon-unchecked]]
      label-text]]])
 
-
 (defn- input
   ([cursor path]
     (input cursor path identity))
@@ -50,56 +50,52 @@
                                      cleaned-value)]
                   (om/update! cursor path final-value))}]))
 
-(defn settings-panel [{:keys [start-chan running? settings]} owner]
-  (reify
-    om/IRender
-    (render [_]
-      (let [[label-width field-width] [4 8]
-            label-class (str "col-sm-" label-width)
-            input-class (str "col-sm-" field-width)]
-        (html
-          [:.panel.panel-default.settings
-           [:.panel-heading "Settings"]
-           [:.panel-body
-            [:.row
-             [:.col-sm-6
-              [:form.form-horizontal
+(defcomponent settings-panel [{:keys [start-chan running? settings]} owner]
+  (render [_]
+    (let [[label-width field-width] [4 8]
+          label-class (str "col-sm-" label-width)
+          input-class (str "col-sm-" field-width)]
+      (html
+       [:.panel.panel-default.settings
+        [:.panel-heading "Settings"]
+        [:.panel-body
+         [:.row
+          [:.col-sm-6
+           [:form.form-horizontal
+            [:.form-group
+             [:label.control-label {:class label-class} "Learning rate"]
+              [:div {:class input-class}
+               (input settings [:train-opts :learning-rate] js/parseFloat)]]
+            [:.form-group
+             [:label.control-label {:class label-class} "Momentum"]
+             [:div {:class input-class}
+              (input settings [:train-opts :momentum] js/parseFloat)]]
+            [:.form-group
+             [:label.control-label {:class label-class} "Weight decay"]
+             [:div {:class input-class}
+              (input settings [:train-opts :weight-decay] js/parseFloat)]]
+            [:.form-group
+             [:label.control-label {:class label-class} "Iterations"]
+             [:div {:class input-class}
+              (input settings [:train-opts :iter-count] js/parseInt)]]
+            [:.form-group
+             [:div {:class (str input-class " col-sm-offset-" label-width)}
+              [:button.btn.btn-primary.btn-block
+               {:type     "button"
+                :disabled (when running? "disabled")
+                :on-click #(go (>! start-chan {}))}
+               "Start"]]]]]
+          [:.col-sm-6
+           [:form.form-horizontal
+            [:.form-group
+             [:label.control-label {:class label-class} "Repeat times"]
+             [:div {:class input-class}
+              (input settings [:mutation-opts :repeat-times] js/parseInt)]]
 
-               [:.form-group
-                [:label.control-label {:class label-class} "Learning rate"]
-                [:div {:class input-class}
-                 (input settings [:train-opts :learning-rate] js/parseFloat)]]
-               [:.form-group
-                [:label.control-label {:class label-class} "Momentum"]
-                [:div {:class input-class}
-                 (input settings [:train-opts :momentum] js/parseFloat)]]
-               [:.form-group
-                [:label.control-label {:class label-class} "Weight decay"]
-                [:div {:class input-class}
-                 (input settings [:train-opts :weight-decay] js/parseFloat)]]
-               [:.form-group
-                [:label.control-label {:class label-class} "Iterations"]
-                [:div {:class input-class}
-                 (input settings [:train-opts :iter-count] js/parseInt)]]
-
-               [:.form-group
-                [:div {:class (str input-class " col-sm-offset-" label-width)}
-                 [:button.btn.btn-primary.btn-block
-                  {:type     "button"
-                   :disabled (when running? "disabled")
-                   :on-click #(go (>! start-chan {}))}
-                  "Start"]]]]]
-             [:.col-sm-6
-              [:form.form-horizontal
-               [:.form-group
-                [:label.control-label {:class label-class} "Repeat times"]
-                [:div {:class input-class}
-                 (input settings [:mutation-opts :repeat-times] js/parseInt)]]
-
-               (checkbox settings [:mutation-opts :remove-edges?]
-                         "Remove edges?")
-               (checkbox settings [:mutation-opts :remove-nodes?]
-                         "Remove nodes?")]]]]])))))
+            (checkbox settings [:mutation-opts :remove-edges?]
+                      "Remove edges?")
+            (checkbox settings [:mutation-opts :remove-nodes?]
+                      "Remove nodes?")]]]]]))))
 
 (defmulti mutation-view :operation)
 
@@ -124,95 +120,87 @@
 (defmethod mutation-view ::mutations/add-layer [m]
   [:p "Added hidden layer"])
 
-(defn solving-block [{:keys [solving graph]} owner]
-  (reify
-    om/IInitState
-    (init-state [_]
-      {:visible? false})
-    om/IRender
-    (render [_]
-      (html
-        (let [{:keys [visible?]} (om/get-state owner)
-              {:keys [mutation mean-error variance mutations-tried]} solving
-              format-error (partial gstring/format "%.5f")
-              format-variance (partial gstring/format "%.5f")]
-          [:li.list-group-item.solving
-           [:.row
-            [:.col-sm-8
-             [:p {:on-click #(om/update-state! owner :visible? not)}
-              (mutation-view mutation)]]
-            [:.col-sm-4.stats
-             [:span.label.label-info (format-variance variance)]
-             [:span.label.label-danger (format-error mean-error)]]]
-           [:.row {:class (when-not visible? "hidden")}
-            [:.col-sm-5
-             {:dangerouslySetInnerHTML {:__html graph}}]
-            [:.col-sm-7
-             [:table.table.table-condensed
-              [:thead [:tr (for [col-name ["Operation" "Error" "Variance"]]
-                             [:th col-name])]]
-              [:tbody
-               (for [[mutation {variance :variance its-error :mean-error}] mutations-tried
-                     :let [best? (= its-error mean-error)]]
-                 [:tr {:class (when best? "success")}
-                  [:td (mutation-view mutation)]
-                  [:td (format-error its-error)]
-                  [:td (format-variance variance)]])]]]]])))))
+(defcomponent solving-block [{:keys [solving graph]} owner]
+  (init-state [_]
+    {:visible? false})
+  (render [_]
+    (html
+      (let [{:keys [visible?]} (om/get-state owner)
+            {:keys [mutation mean-error variance mutations-tried]} solving
+            format-error (partial gstring/format "%.5f")
+            format-variance (partial gstring/format "%.5f")]
+        [:li.list-group-item.solving
+         [:.row
+          [:.col-sm-8
+           [:p {:on-click #(om/update-state! owner :visible? not)}
+            (mutation-view mutation)]]
+          [:.col-sm-4.stats
+           [:span.label.label-info (format-variance variance)]
+           [:span.label.label-danger (format-error mean-error)]]]
+         [:.row {:class (when-not visible? "hidden")}
+          [:.col-sm-5
+           {:dangerouslySetInnerHTML {:__html graph}}]
+          [:.col-sm-7
+           [:table.table.table-condensed
+            [:thead [:tr (for [col-name ["Operation" "Error" "Variance"]]
+                           [:th col-name])]]
+            [:tbody
+             (for [[mutation {variance :variance its-error :mean-error}] mutations-tried
+                   :let [best? (= its-error mean-error)]]
+               [:tr {:class (when best? "success")}
+                [:td (mutation-view mutation)]
+                [:td (format-error its-error)]
+                [:td (format-variance variance)]])]]]]]))))
 
-(defn solvings-panel [{:keys [solvings] :as cursor}]
-  (reify
-    om/IRender
-    (render [_]
-      (html
-        [:.solvings
-         [:.panel.panel-default
-          [:.panel-heading "Mutations"]
-          [:ul.list-group
-           (for [i (range (count solvings))
-                 :let [[solving graph] (nth solvings i)]]
-             (om/build solving-block
-                       {:number  (inc i)
-                        :solving solving
-                        :graph   graph}
-                       {:react-key i}))]]]))))
+(defcomponent solvings-panel [{:keys [solvings] :as cursor}]
+  (render [_]
+    (html
+      [:.solvings
+       [:.panel.panel-default
+        [:.panel-heading "Mutations"]
+        [:ul.list-group
+         (for [i (range (count solvings))
+               :let [[solving graph] (nth solvings i)]]
+           (om/build solving-block
+                     {:number  (inc i)
+                      :solving solving
+                      :graph   graph}
+                     {:react-key i}))]]])))
 
-(defn app [{:keys [connection settings running? solvings] :as cursor} owner]
-  (reify
-    om/IInitState
-    (init-state [_]
-      {:start-chan (chan)})
+(defcomponent app [{:keys [connection settings running? solvings] :as cursor} owner]
+  (init-state [_]
+    {:start-chan (chan)})
 
-    om/IWillMount
-    (will-mount [_]
-      (go-loop []
-               (<! (om/get-state owner :start-chan))
-               (om/update! cursor :running? true)
-               (om/update! cursor :solvings [])
-               (let [{:keys [train-opts mutation-opts]} @settings]
-                 (>! connection (worker/start-command train-opts mutation-opts)))
-               (recur))
-      (go-loop [frame (<! connection)]
-               (if-not (nil? frame)
-                 (let [{message :message} frame]
-                   (.debug js/console (str "Received:" (pr-str message)))
-                   (case (:command message)
-                     ::worker/step (let [{:keys [solving graph]} message]
-                                     (om/transact! solvings #(conj % [solving graph])))
-                     ::worker/finished (om/update! cursor :running? false))
-                   (recur (<! connection))))))
+  (will-mount [_]
+    (go-loop []
+             (<! (om/get-state owner :start-chan))
+             (om/update! cursor :running? true)
+             (om/update! cursor :solvings [])
+             (let [{:keys [train-opts mutation-opts]} @settings]
+               (>! connection (worker/start-command train-opts mutation-opts)))
+             (recur))
 
-    om/IRenderState
-    (render-state [_ {:keys [start-chan]}]
-      (html
-        [:.container.app
-         [:.row-fluid
-          [:.col-md-12
-           (om/build settings-panel {:start-chan start-chan
-                                     :running? running?
-                                     :settings settings})]]
-         [:.row-fluid
-          [:.col-md-12
-           (om/build solvings-panel {:solvings solvings})]]]))))
+    (go-loop [frame (<! connection)]
+             (if-not (nil? frame)
+               (let [{message :message} frame]
+                 (.debug js/console (str "Received command:" (:command message)))
+                 (case (:command message)
+                   ::worker/step (let [{:keys [solving graph]} message]
+                                   (om/transact! solvings #(conj % [solving graph])))
+                   ::worker/finished (om/update! cursor :running? false))
+                 (recur (<! connection))))))
+  (render-state [_ {:keys [start-chan]}]
+    (html
+      [:.container.app
+       [:.row-fluid
+        [:.col-md-12
+         (om/build settings-panel {:start-chan start-chan
+                                   :running? running?
+                                   :settings settings})]]
+       [:.row-fluid
+        [:.col-md-12
+         (om/build solvings-panel {:solvings solvings})]]])
+                ))
 
 (defn- start []
   (.debug js/console "Starting app")
@@ -237,4 +225,3 @@
 (start)
 (fw/start {:websocket-url "ws://localhost:3449/figwheel-ws"
            :on-jsload #(do (shutdown) (start))})
-
