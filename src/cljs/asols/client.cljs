@@ -11,7 +11,6 @@
             [asols.worker :refer [TrainOpts MutationOpts] :as worker])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
-
 (defonce app-state
   (atom {:connection nil
          :running?   false
@@ -120,6 +119,12 @@
 (defmethod mutation-view ::mutations/add-layer [m]
   [:p "Added hidden layer"])
 
+(defn format-time [solving]
+  (let [ms-took (:ms-took solving)]
+    (condp > ms-took
+      1E3 (str (int ms-took) " ms")
+      1E6 (gstring/format "%.2f sec" (/ ms-took 1E3)))))
+
 (defcomponent solving-block [{:keys [solving graph]} owner]
   (init-state [_]
     {:visible? false})
@@ -131,12 +136,13 @@
             format-variance (partial gstring/format "%.5f")]
         [:li.list-group-item.solving
          [:.row
-          [:.col-sm-8
+          [:.col-sm-7
            [:p {:on-click #(om/update-state! owner :visible? not)}
             (mutation-view mutation)]]
-          [:.col-sm-4.stats
+          [:.col-sm-5.stats
            [:span.label.label-info (format-variance variance)]
-           [:span.label.label-danger (format-error mean-error)]]]
+           [:span.label.label-danger (format-error mean-error)]
+           [:span.label.label-default (format-time solving)]]]
          [:.row {:class (when-not visible? "hidden")}
           [:.col-sm-5
            {:dangerouslySetInnerHTML {:__html graph}}]

@@ -9,7 +9,7 @@
 
 (defrecord MutationOpts [repeat-times remove-edges? remove-nodes?])
 
-(defrecord Solving [mutation mean-error variance mutations-tried])
+(defrecord Solving [mutation mean-error variance mutations-tried ms-took])
 
 (defn start-command
   [train-opts mutation-opts]
