@@ -24,15 +24,6 @@
          (apply str)
          (keyword))))
 
-(defn- edge-layer
-  []
-  [])
-
-(defn- hidden-layer
-  "Hidden layer is simply set of nodes"
-  []
-  #{})
-
 (defprotocol NetworkProtocol
   (layers
     [this]
@@ -45,6 +36,8 @@
   (get-weight
     [this edge]
     "Returns weight of given edge"))
+
+(defrecord Layer [type nodes])
 
 (defrecord Network [input-layer output-layer hidden-layers edges]
   NetworkProtocol
@@ -66,10 +59,10 @@
   (has-edge? [_ node-from node-to]
     (contains? edges [node-from node-to]))
   (single-edge? [this [node-from node-to]]
-    (let [layer-from (->> (layers this)
+    (let [layer-from (->> (map :nodes (layers this))
                           (filter #(some #{node-from} %))
                           (first))
-          layer-to (->> (layers this)
+          layer-to (->> (map :nodes (layers this))
                         (filter #(some #{node-to} %))
                         (first))
           edges-between (for [node-a layer-from
@@ -83,27 +76,19 @@
 (defn- rand-weight [{input-layer :input-layer}]
   "Returns randon number in range [-scale .. scale] where scale
   is sqrt(3 / inputs-count)"
-  (let [scale (Math/sqrt (/ 3 (count input-layer)))]
+  (let [scale (Math/sqrt (/ 3 (count (:nodes input-layer))))]
     (-> (rand)
         (* 2 scale)
         (- scale))))
 
-(defn network
-  "Creates new network"
-  [input-count output-count]
-  (->Network
-    (into (edge-layer) (repeatedly input-count node))
-    (into (edge-layer) (repeatedly output-count node))
-    []
-    {}))
-
 (defn add-layer
   "Adds new hidden layer to network, returns new network"
-  ([network]
-    (add-layer network 0))
-  ([network index]
+  ([network type]
+    (add-layer network 0 type))
+  ([network index type]
    (let [[before-layers after-layers] (split-at index (:hidden-layers network))
-         new-layers (concat before-layers [(hidden-layer)] after-layers)]
+         new-layer (->Layer type #{})
+         new-layers (concat before-layers [new-layer] after-layers)]
      (assoc network :hidden-layers (vec new-layers)))))
 
 (defn add-node
@@ -113,7 +98,7 @@
     (add-node network 0))
   ([network layer-i]
    (let [new-node (node)
-         new-net (update-in network [:hidden-layers layer-i] conj new-node)]
+         new-net (update-in network [:hidden-layers layer-i :nodes] conj new-node)]
      [new-net new-node])))
 
 (defn del-node
@@ -123,7 +108,7 @@
                          :when (every? #(not= % node) edge)]
                      edge)]
     (-> network
-        (update-in [:hidden-layers layer-i] disj node)
+        (update-in [:hidden-layers layer-i :nodes] disj node)
         (update-in [:edges] select-keys edges-left))))
 
 (defn add-edge
@@ -151,9 +136,9 @@
         (add-edge node-from node-to weight))))
 
 (defn split-node
-  "docstring"
   [network node target-layer-i]
-  (let [target-layer-nodes (into #{} (nth (layers network) (inc target-layer-i)))
+  (let [target-layer (nth (layers network) (inc target-layer-i))
+        target-layer-nodes (into #{} (:nodes target-layer))
         edges-to-move (->> (in-edges network node)
                            (remove (fn [[node _]] (target-layer-nodes node))))
         [new-net new-node] (add-node network target-layer-i)
@@ -162,10 +147,17 @@
         next-layer (nth (layers new-net) (+ target-layer-i 2))]
     (as-> new-net $
           (reduce edge-mover $ edges-to-move)
-          (reduce edge-adder $ next-layer))))
+          (reduce edge-adder $ (:nodes next-layer)))))
 
 (defn reset-weights
   [network]
   (let [new-edges (for [[k _] (:edges network)]
                     [k (rand-weight network)])]
     (assoc network :edges (into {} new-edges))))
+
+(defn network
+  "Creates new network"
+  [input-count output-count output-type]
+  (let [input-layer (->Layer ::input (into [] (repeatedly input-count node)))
+        output-layer (->Layer output-type (into [] (repeatedly output-count node)))]
+    (->Network input-layer output-layer [] {})))

@@ -4,56 +4,102 @@
             [asols.network :as network])
   (:import (asols.worker TrainOpts)))
 
-(defn act-fn
-  "Sigmoid activation function"
-  [x]
+(defmulti forward
+  "Accepts weighted sums of each neuron as input vector, computes output vector.
+  Every network layer should implement this method."
+  (fn [layer in-vector] (:type layer)))
+
+(defmulti derivative
+  "Computes activation function derivative.
+  Only hidden layers should implement this method."
+  (fn [layer out-x] (:type layer)))
+
+(defmulti out-deltas
+  "Computes deltas (errors) of output layer."
+  (fn [layer out-vector target-vector] (:type layer)))
+
+;; Sigmoid hidden layer & output layer with euclidean loss
+
+(defn ^double sigmoid [^double x]
   (/ 1 (+ 1 (Math/exp (- x)))))
 
-(defn- act-fn-dx
-  "Sigmoid activation function derivative"
-  [fx]
-  (* fx (- 1 fx)))
+(defmethod forward ::sigmoid
+  [layer in-vector]
+  (map sigmoid in-vector))
 
-(defn- calc-node-value
-  "Calculates node output value"
-  [net node nodes-values]
-  (act-fn
-    (sum
-      (for [[node-from _ :as edge] (network/in-edges net node)]
-        (* (nodes-values node-from)
-           (network/get-weight net edge))))))
+(defmethod derivative ::sigmoid
+  [layer out-x]
+  (* out-x (- 1 out-x)))
+
+(defmethod out-deltas ::sigmoid
+  [layer out-vector target-vector]
+  (map
+    (fn [out-x target-x]
+      (* (derivative layer out-x)
+         (- out-x target-x)))
+    out-vector target-vector))
+
+;; ReLU hidden layer
+
+(defmethod forward ::relu
+  [layer in-vector]
+  (map (partial max 0) in-vector))
+
+(defmethod derivative ::relu
+  [layer forward-vals]
+  (for [x forward-vals]
+    (if (pos? x) 1 0)))
+
+;; Softmax output layer with log-likehood loss
+
+(defmethod forward ::softmax
+  [layer in-vector]
+  (let [safe-exp #(-> % (max -500) (min 500) (Math/exp))
+        exp-sums (map safe-exp in-vector)
+        total (sum exp-sums)]
+    (for [x exp-sums]
+      (/ x total))))
+
+(defmethod out-deltas ::softmax
+  [layer out-vector target-vector]
+  (map - out-vector target-vector))
+
+
+;; Backprop implementation
 
 (defn- forward-layer
-  [net nodes-values layer]
-  (into nodes-values (for [node layer
-                           :let [node-out (calc-node-value net node nodes-values)]]
-                       [node node-out])))
+  "Performs forward pass for single layer, returns map of nodes outputs"
+  [net values layer]
+  (let [in-vector (for [node (:nodes layer)
+                        :let [in-edges (network/in-edges net node)]]
+                    (sum (for [[node-from _ :as edge] in-edges]
+                           (* (values node-from)
+                              (network/get-weight net edge)))))
+        out-vector (forward layer (vec in-vector))]
+    (into values (map vector (:nodes layer) out-vector))))
 
-(defn forward
+(defn forward-pass
   "Performs forward pass, returns map of nodes outputs"
   [net input-vector]
-  (let [nodes-values (zipmap (:input-layer net) input-vector)
+  (let [nodes-values (zipmap (:nodes (:input-layer net)) input-vector)
         layers (rest (network/layers net))
         layer-reducer #(forward-layer net %1 %2)]
     (reduce layer-reducer nodes-values layers)))
 
 (defn- backward-out-layer
-  "Backward pass for output layer"
+  "Performs backward pass for output layer, returns map of nodes deltas"
   [layer forward-values target-vector]
-  (let [target-values (zipmap layer target-vector)]
-    (into {} (for [node layer]
-               (let [node-out (forward-values node)
-                     node-target (target-values node)
-                     delta (* (act-fn-dx node-out) (- node-out node-target))]
-                 [node delta])))))
+  (let [out-vector (mapv #(forward-values %) (:nodes layer))
+        deltas-vector (out-deltas layer out-vector target-vector)]
+    (zipmap (:nodes layer) deltas-vector)))
 
 (defn- backward-layer
-  "Backward pass for hidden & input layers"
+  "Performs backward pass for hidden layer, returns map of nodes deltas"
   [net forward-values deltas-map layer]
-  (into deltas-map (for [node layer]
-                     (let [node-out (forward-values node)
+  (into deltas-map (for [node (:nodes layer)]
+                     (let [out-x (forward-values node)
                            out-edges (network/out-edges net node)
-                           delta (* (act-fn-dx node-out)
+                           delta (* (derivative layer out-x)
                                     (sum (for [[_ node-to :as e] out-edges]
                                            (* (deltas-map node-to)
                                               (network/get-weight net e)))))]
@@ -63,7 +109,7 @@
   "Performs backward pass, returns map of nodes deltas"
   [net target-vector forward-values]
   (let [out-layer (:output-layer net)
-        layers (reverse (butlast (network/layers net)))
+        layers (reverse (butlast (rest (network/layers net))))
         deltas-map (backward-out-layer out-layer forward-values target-vector)
         layer-reducer #(backward-layer net forward-values %1 %2)]
     (reduce layer-reducer deltas-map layers)))
@@ -72,17 +118,19 @@
   "Performs forward & backward pass, returns map of delta weights of edges"
   [net [input-vector output-vector] train-opts prev-delta-weights]
   (let [{:keys [learning-rate momentum weight-decay]} train-opts
-        forward-values (forward net input-vector)
+        forward-values (forward-pass net input-vector)
         deltas-map (backward net output-vector forward-values)]
     (into {} (for [[[node-from node-to :as e] weight] (:edges net)]
-               (let [delta-weight (+ (* -1 learning-rate (deltas-map node-to) (forward-values node-from))
+               (let [delta-weight (+ (* -1 learning-rate
+                                        (deltas-map node-to)
+                                        (forward-values node-from))
                                      (* momentum (get prev-delta-weights e 0))
                                      (* weight-decay weight))]
                  [e delta-weight])))))
 
 (defn backprop-step
-  "Trains given network on @data-vector returns network with updated
-  weights & map of weights deltas"
+  "Performs forward & backward pass and tunes network weights.
+  Returns new network and weights deltas being made."
   [net data-vector train-opts prev-delta-weights]
   (let [delta-weights (backprop-delta-weights net data-vector train-opts prev-delta-weights)
         new-net (update-in net [:edges] #(merge-with + % delta-weights))]
@@ -90,9 +138,9 @@
 
 (defn train
   "Trains given network on dataset with given opts, returns new net"
-  [net dataset {iter-count :iter-count :as train-opts}]
+  [net dataset train-opts]
   (loop [net net
-         dataset-left (apply concat (repeat iter-count dataset))
+         dataset-left (apply concat (repeat (:iter-count train-opts) dataset))
          delta-weights nil]
     (if (empty? dataset-left)
       net
@@ -102,11 +150,16 @@
               (rest dataset-left)
               new-delta-weights)))))
 
+(defn activate
+  "Returns output vector of after passing given input vector on net's inputs"
+  [net input-vector]
+  (let [nodes-values (forward-pass net input-vector)]
+    (mapv nodes-values (:nodes (:output-layer net)))))
+
 (defn calc-error-on-vector
   "Calculates error on given data vector for given network"
   [net [input-vector target-output]]
-  (let [nodes-values (forward net input-vector)
-        predicted-output (mapv nodes-values (:output-layer net))]
+  (let [predicted-output (activate net input-vector)]
     (/ (sum-of-squares (map - target-output predicted-output))
        2)))
 
@@ -125,11 +178,3 @@
                          (calc-error dataset)))]
     [(mean net-errors)
      (variance net-errors)]))
-
-(defn activate
-  "Returns output vector of after passing given input vector on net's inputs"
-  [net input-vector]
-  (let [nodes-values (forward net input-vector)]
-    (vec
-      (for [node (:output-layer net)]
-        (nodes-values node)))))

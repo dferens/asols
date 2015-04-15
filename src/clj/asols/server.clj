@@ -30,8 +30,11 @@
             (let [{:keys [train-opts mutation-opts]} message
                   train-opts (worker/map->TrainOpts train-opts)
                   mutation-opts (worker/map->MutationOpts mutation-opts)
-                  dataset [[[0 0] [0]] [[1 1] [0]] [[1 0] [1]] [[0 1] [1]]]
-                  start-net (solver/create-start-net 2 1)]
+                  dataset [[[0 0] [1 0]]
+                           [[1 1] [1 0]]
+                           [[1 0] [0 1]]
+                           [[0 1] [0 1]]]
+                  start-net (solver/create-start-net 2 2)]
               (loop [net start-net
                      current-error nil]
                 (let [solving (solver/step-net net dataset train-opts mutation-opts)
@@ -44,7 +47,9 @@
                       (>! chan (worker/step-command solving))
                       (prn "Sent step")
                       (recur (:network mutation) mean-error))
-                    (>! chan (worker/finished-command)))))))
+                    (do
+                      (>! chan (worker/step-command solving))
+                      (>! chan (worker/finished-command))))))))
           (recur (<! chan)))))))
 
 (defroutes app-routes

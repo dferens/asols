@@ -16,7 +16,7 @@
                      (dot/subgraph layer-id
                        [{:label label :color "white"}
                         (dot/node-attrs {:style "solid" :shape "circle" :color color})
-                        (map vector layer)])))
+                        (map vector (:nodes layer))])))
                  layers)
         edges (for [[edge weight] (:edges net)]
                 edge #_(into edge [{:label (format "%.2f" weight)}]))]
