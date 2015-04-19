@@ -60,7 +60,7 @@
               :or {ip "localhost"
                    port 8080}}]
   (-> #'app-routes
-      (wrap-reload ["src" "target/generated/src/"])
+      (wrap-reload ["src" "target/generated/src/clj"])
       (wrap-resource "public")
       (wrap-content-type)
       (wrap-not-modified)

@@ -10,10 +10,10 @@
   "Return mutations for adding new neurons to existing hidden layers.
   Each new neuron will be fully connected to prev & next layers."
   [net]
-  (for [index (range (count (:hidden-layers net)))]
-    (let [prev-layer (nth (network/layers net) index)
-          next-layer (nth (network/layers net) (+ index 2))
-          [new-net new-node] (network/add-node net index)]
+  (for [index (range (count (network/hidden-layers net)))]
+    (let [prev-layer (nth (:layers net) index)
+          next-layer (nth (:layers net) (+ index 2))
+          [new-net new-node] (network/add-node net (inc index))]
       {:operation    ::add-neuron
        :network      (as-> new-net $
                            (reduce #(network/add-edge %1 %2 new-node) $ (:nodes prev-layer))
@@ -23,7 +23,7 @@
 (defn add-edges-mutations
   "Return mutations for adding all missing edges"
   [net]
-  (let [layers (network/layers net)
+  (let [layers (:layers net)
         layers-pairs (map vector (butlast layers) (rest layers))]
     (for [[layer-a layer-b] layers-pairs
           node-from (:nodes layer-a)
@@ -35,16 +35,15 @@
 
 (defn remove-neurons-mutations
   [net]
-  (let [layers (:hidden-layers net)
-        layers-indexed (for [i (range (count layers))]
-                         [i (nth layers i)])]
-    (for [[layer-i layer] layers-indexed
+  (let [hidden-layers (network/hidden-layers net)
+        hidden-layers-indexed (map-indexed (fn [i v] [i v]) hidden-layers)]
+    (for [[hidden-layer-i layer] hidden-layers-indexed
           node (:nodes layer)
+          :let [layer-i (inc hidden-layer-i)]
           :when (> (count (:nodes layer)) 1)]
-      (let []
-        {:operation      ::del-neuron
-         :network        (network/del-node net layer-i node)
-         :deleted-neuron node}))))
+      {:operation ::del-neuron
+       :network (network/del-node net layer-i node)
+       :deleted-neuron node})))
 
 (defn remove-edges-mutations
   "Return mutations for deletion of all net edges"
@@ -58,11 +57,10 @@
 (defn add-layers-mutations
   "Returns mutations for adding new hidden layers to net"
   [net]
-  (let [next-layer-i (count (:hidden-layers net))
-        split-layer (nth (network/layers net) next-layer-i)
-        node-splitter #(network/split-node %1 %2 (dec next-layer-i))
-        type (:type (first (:hidden-layers net)))]
-    [{:operation ::add-layer
-      :network   (as-> net $
-                       (network/add-layer $ (dec next-layer-i) type)
-                       (reduce node-splitter $ (:nodes split-layer)))}]))
+  (for [layer-i (range (count (:layers net)))
+        :when (pos? layer-i)]
+    (let [{:keys [nodes type]} (nth (:layers net) layer-i)
+          new-net (network/add-layer net type layer-i)
+          node-splitter #(network/split-node %1 (inc layer-i) %2)]
+      {:operation ::add-layer
+       :network (reduce node-splitter new-net nodes)})))

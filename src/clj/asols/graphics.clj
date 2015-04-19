@@ -4,8 +4,7 @@
 
 (defn net->dot
   [net]
-  (let [layers (network/layers net)
-        params [{:rankdir "LR"}]
+  (let [params [{:rankdir "LR"}]
         graphs (map-indexed
                  (fn [i layer]
                    (let [layer-id (keyword (str "cluster_" i))
@@ -17,7 +16,7 @@
                        [{:label label :color "white"}
                         (dot/node-attrs {:style "solid" :shape "circle" :color color})
                         (map vector (:nodes layer))])))
-                 layers)
+                 (:layers net))
         edges (for [[edge weight] (:edges net)]
                 edge #_(into edge [{:label (format "%.2f" weight)}]))]
     (dot/dot (dot/digraph (concat params graphs edges)))))

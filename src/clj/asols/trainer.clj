@@ -81,8 +81,9 @@
 (defn forward-pass
   "Performs forward pass, returns map of nodes outputs"
   [net input-vector]
-  (let [nodes-values (zipmap (:nodes (:input-layer net)) input-vector)
-        layers (rest (network/layers net))
+  (let [input-layer (first (:layers net))
+        nodes-values (zipmap (:nodes input-layer) input-vector)
+        layers (rest (:layers net))
         layer-reducer #(forward-layer net %1 %2)]
     (reduce layer-reducer nodes-values layers)))
 
@@ -108,8 +109,8 @@
 (defn backward
   "Performs backward pass, returns map of nodes deltas"
   [net target-vector forward-values]
-  (let [out-layer (:output-layer net)
-        layers (reverse (butlast (rest (network/layers net))))
+  (let [out-layer (last (:layers net))
+        layers (reverse (network/hidden-layers net))
         deltas-map (backward-out-layer out-layer forward-values target-vector)
         layer-reducer #(backward-layer net forward-values %1 %2)]
     (reduce layer-reducer deltas-map layers)))
@@ -154,7 +155,7 @@
   "Returns output vector of after passing given input vector on net's inputs"
   [net input-vector]
   (let [nodes-values (forward-pass net input-vector)]
-    (mapv nodes-values (:nodes (:output-layer net)))))
+    (mapv nodes-values (:nodes (last (:layers net))))))
 
 (defn calc-error-on-vector
   "Calculates error on given data vector for given network"

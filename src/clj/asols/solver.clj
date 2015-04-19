@@ -10,9 +10,9 @@
   [inputs-count outputs-count]
   (let [[net h1] (-> (network/network inputs-count outputs-count ::trainer/sigmoid)
                      (network/add-layer ::trainer/sigmoid)
-                     (network/add-node))
-        in-nodes (:nodes (:input-layer net))
-        out-nodes (:nodes (:output-layer net))]
+                     (network/add-node 1))
+        in-nodes (:nodes (first (:layers net)))
+        out-nodes (:nodes (last (:layers net)))]
     (-> net
         (network/add-edge (first in-nodes) h1)
         (network/add-edge h1 (first out-nodes)))))
