@@ -1,5 +1,6 @@
 (ns asols.mutations
-  (:require [asols.network :as network]))
+  (:require [asols.network :as network]
+            [asols.trainer :as trainer]))
 
 (def operations
   #{::add-neuron ::del-neuron
@@ -58,9 +59,10 @@
   "Returns mutations for adding new hidden layers to net"
   [net]
   (for [layer-i (range (count (:layers net)))
+        layer-type (trainer/hidden-layers-types)
         :when (pos? layer-i)]
-    (let [{:keys [nodes type]} (nth (:layers net) layer-i)
-          new-net (network/add-layer net type layer-i)
+    (let [{:keys [nodes]} (nth (:layers net) layer-i)
+          new-net (network/add-layer net layer-type layer-i)
           node-splitter #(network/split-node %1 (inc layer-i) %2)]
       {:operation ::add-layer
        :network (reduce node-splitter new-net nodes)})))

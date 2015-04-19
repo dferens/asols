@@ -1,5 +1,6 @@
 (ns asols.trainer
   (:require [clojure.core.matrix.stats :refer [sum sum-of-squares mean variance]]
+            [clojure.set :as set]
             [asols.worker]
             [asols.network :as network])
   (:import (asols.worker TrainOpts)))
@@ -17,6 +18,21 @@
 (defmulti out-deltas
   "Computes deltas (errors) of output layer."
   (fn [layer out-vector target-vector] (:type layer)))
+
+
+(defn hidden-layers-types
+  "Returns all available hidden layers types"
+  []
+  (let [forward-implementers (into #{} (keys (methods forward)))
+        derivative-implementers (into #{} (keys (methods derivative)))]
+    (set/intersection forward-implementers derivative-implementers)))
+
+(defn out-layers-types
+  "Returns all available output layers types"
+  []
+  (let [forward-implementers (into #{} (keys (methods forward)))
+        out-deltas-implementers (into #{} (keys (methods out-deltas)))]
+    (set/intersection forward-implementers out-deltas-implementers)))
 
 ;; Sigmoid hidden layer & output layer with euclidean loss
 
@@ -46,9 +62,8 @@
   (map (partial max 0) in-vector))
 
 (defmethod derivative ::relu
-  [layer forward-vals]
-  (for [x forward-vals]
-    (if (pos? x) 1 0)))
+  [layer out-x]
+  (if (pos? out-x) 1 0))
 
 ;; Softmax output layer with log-likehood loss
 

@@ -7,15 +7,20 @@
             [goog.string :as gstring]
             [goog.string.format]
             [figwheel.client :as fw]
-            [asols.mutations :as mutations]
             [asols.worker :refer [TrainOpts MutationOpts] :as worker])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
+
+(defn- str->keyword
+  [value]
+  (keyword (apply str (rest value))))
 
 (defonce app-state
   (atom {:connection nil
          :running?   false
          :settings   {:train-opts    (TrainOpts. 0.3 0.9 5E-4 1000)
-                      :mutation-opts (MutationOpts. 5 true true)}
+                      :mutation-opts (MutationOpts. nil nil 5 true true)
+                      :hidden-layer-choices []
+                      :out-layer-choices []}
          :solvings   []}))
 
 (defn- checkbox
@@ -87,6 +92,28 @@
           [:.col-sm-6
            [:form.form-horizontal
             [:.form-group
+             [:label.control-label {:class label-class} "Hidden layer"]
+             [:div {:class input-class}
+              [:select.form-control
+               {:on-change #(->> (.. % -target -value)
+                                 (str->keyword)
+                                 (om/update! settings [:mutation-opts :hidden-layer-type]))
+                :value     (:hidden-layer-type (:train-opts settings))}
+               (for [choice (:hidden-layer-choices settings)]
+                 [:option {:value choice} (name choice)])]]]
+
+            [:.form-group
+             [:label.control-label {:class label-class} "Output layer"]
+             [:div {:class input-class}
+              [:select.form-control
+               {:value (:out-layer-type (:train-opts settings))
+                :on-change #(->> (.. % -target -value)
+                                 (str->keyword)
+                                 (om/update! settings [:mutation-opts :out-layer-type]))}
+               (for [choice (:out-layer-choices settings)]
+                 [:option {:value choice} (name choice)])]]]
+
+            [:.form-group
              [:label.control-label {:class label-class} "Repeat times"]
              [:div {:class input-class}
               (input settings [:mutation-opts :repeat-times] js/parseInt)]]
@@ -98,25 +125,25 @@
 
 (defmulti mutation-view :operation)
 
-(defmethod mutation-view ::mutations/add-neuron [m]
+(defmethod mutation-view :asols.mutations/add-neuron [m]
   [:p "Added node "
    [:span.label.label-primary (name (:added-neuron m))]])
 
-(defmethod mutation-view ::mutations/add-edge [m]
+(defmethod mutation-view :asols.mutations/add-edge [m]
   (let [[node-from node-to] (:added-edge m)]
     [:p "Added edge "
      [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
 
-(defmethod mutation-view ::mutations/del-neuron [m]
+(defmethod mutation-view :asols.mutations/del-neuron [m]
   [:p "Removed node "
    [:span.label.label-primary (name (:deleted-neuron m))]])
 
-(defmethod mutation-view ::mutations/del-edge [m]
+(defmethod mutation-view :asols.mutations/del-edge [m]
   (let [[node-from node-to] (:deleted-edge m)]
     [:p "Removed edge "
      [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
 
-(defmethod mutation-view ::mutations/add-layer [m]
+(defmethod mutation-view :asols.mutations/add-layer [m]
   [:p "Added hidden layer"])
 
 (defn format-error [error]
@@ -213,6 +240,12 @@
                (let [{message :message} frame]
                  (.debug js/console (str "Received command:" (:command message)))
                  (case (:command message)
+                   ::worker/init (let [{opts :opts} message
+                                       hidden-type (first (:hidden-layer-choices opts))
+                                       out-type (first (:out-layer-choices opts))]
+                                   (om/transact! settings #(merge % opts))
+                                   (om/update! settings [:mutation-opts :hidden-layer-type] hidden-type)
+                                   (om/update! settings [:mutation-opts :out-layer-type] out-type))
                    ::worker/step (let [{:keys [solving]} message]
                                    (om/transact! solvings #(conj % solving)))
                    ::worker/finished (om/update! cursor :running? false))

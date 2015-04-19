@@ -21,6 +21,7 @@
 (defn ws-handler [req]
   (with-channel req chan {:format :transit-json}
     (prn "Client connected")
+    (go (>! chan (worker/init-command (trainer/hidden-layers-types) (trainer/out-layers-types))))
     (go-loop [frame (<! chan)]
       (if (nil? frame)
         (prn "Client disconnected")
@@ -34,7 +35,7 @@
                            [[1 1] [1 0]]
                            [[1 0] [0 1]]
                            [[0 1] [0 1]]]
-                  start-net (solver/create-start-net 2 2)]
+                  start-net (solver/create-start-net 2 2 mutation-opts)]
               (loop [net start-net
                      current-error nil]
                 (let [solving (solver/step-net net dataset train-opts mutation-opts)

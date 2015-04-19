@@ -7,9 +7,11 @@
   (:import (asols.worker TrainOpts SolvingCase Solving MutationOpts)))
 
 (defn create-start-net
-  [inputs-count outputs-count]
-  (let [[net h1] (-> (network/network inputs-count outputs-count ::trainer/sigmoid)
-                     (network/add-layer ::trainer/sigmoid)
+  [inputs-count outputs-count mutation-opts]
+  (let [hidden-type (:hidden-layer-type mutation-opts)
+        out-type (:out-layer-type mutation-opts)
+        [net h1] (-> (network/network inputs-count outputs-count out-type)
+                     (network/add-layer hidden-type)
                      (network/add-node 1))
         in-nodes (:nodes (first (:layers net)))
         out-nodes (:nodes (last (:layers net)))]
