@@ -15,6 +15,10 @@ FIXME
 2. Launch app
 
     $ lein run
+    
+3. Run tests
+
+    $ lein test-refresh
 
 ## Usage
 

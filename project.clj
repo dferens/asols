@@ -30,7 +30,8 @@
                              [lein-bower "0.5.1"]
                              [lein-figwheel "0.2.6"]
                              [lein-pdo "0.1.1"]
-                             [com.keminglabs/cljx "0.6.0"]]
+                             [com.keminglabs/cljx "0.6.0"]
+                             [com.jakemccrary/lein-test-refresh "0.8.0"]]
                    :dependencies [[javax.servlet/servlet-api "2.5"]]}
              :uberjar {:aot :all}}
 

@@ -1,6 +1,6 @@
-(ns asols.core-test
+(ns asols.network-test
   (:require [clojure.test :refer :all]
-            [asols.core :refer :all]))
+            [asols.network :refer :all]))
 
 (deftest a-test
   (testing "FIXME, I fail."
