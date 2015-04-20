@@ -11,8 +11,8 @@
 
 (defn- create-start-net
   [inputs-count outputs-count mutation-opts]
-  (let [hidden-type (:hidden-layer-type mutation-opts)
-        out-type (:out-layer-type mutation-opts)
+  (let [hidden-type (:hidden-type mutation-opts)
+        out-type (:out-type mutation-opts)
         [net h1] (-> (network/network inputs-count outputs-count out-type)
                      (network/add-layer hidden-type)
                      (network/add-node 1))
@@ -52,13 +52,9 @@
                                [mean-error variance] (train new-net)
                                graph (graphics/render-network new-net)]]
                      (SolvingCase. number mut mean-error variance graph)))
-        ms-took (/ (double (- (System/nanoTime) started)) 1E6)]
-    (Solving. ms-took cases)))
-
-(defn- best-solving-case [solving]
-  (->> (:cases solving)
-       (sort-by :mean-error)
-       (first)))
+        ms-took (/ (double (- (System/nanoTime) started)) 1E6)
+        best-case (first (sort-by :mean-error cases))]
+    (Solving. cases best-case ms-took)))
 
 (defn init [in-chan out-chan]
   (go (>! out-chan (commands/init (trainer/hidden-types) (trainer/out-types))))
@@ -75,7 +71,7 @@
           (loop [net start-net
                  [current-error _] (error-fn start-net)]
             (let [solving (solve-fn net)
-                  {:keys [mean-error variance mutation]} (best-solving-case solving)
+                  {:keys [mean-error variance mutation]} (:best-case solving)
                   better? (< mean-error current-error)
                   enough? (< mean-error 1E-4)]
               (if (and better? (not enough?))

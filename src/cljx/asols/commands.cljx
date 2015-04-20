@@ -6,15 +6,11 @@
 
 (defrecord TrainOpts [learning-rate momentum weight-decay iter-count])
 
-(defrecord MutationOpts [hidden-layer-type
-                         out-layer-type
-                         repeat-times
-                         remove-edges?
-                         remove-nodes?])
+(defrecord MutationOpts [hidden-type out-type repeat-times remove-edges? remove-nodes?])
 
 (defrecord SolvingCase [number mutation mean-error variance graph])
 
-(defrecord Solving [ms-took cases])
+(defrecord Solving [cases best-case ms-took])
 
 #+clj
 (defmulti deserialize :command)
@@ -25,8 +21,8 @@
 #+clj
 (defn init [hidden-types out-types]
   {:command ::init
-   :opts {:hidden-layer-choices hidden-types
-          :out-layer-choices out-types}})
+   :opts    {:hidden-choices hidden-types
+             :out-choices    out-types}})
 
 #+clj
 (defn step

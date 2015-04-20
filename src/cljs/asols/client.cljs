@@ -19,8 +19,8 @@
          :running?   false
          :settings   {:train-opts    (TrainOpts. 0.3 0.9 5E-4 1000)
                       :mutation-opts (MutationOpts. nil nil 5 true true)
-                      :hidden-layer-choices []
-                      :out-layer-choices []}
+                      :hidden-choices []
+                      :out-choices []}
          :solvings   []}))
 
 (defn- checkbox
@@ -97,20 +97,20 @@
               [:select.form-control
                {:on-change #(->> (.. % -target -value)
                                  (str->keyword)
-                                 (om/update! settings [:mutation-opts :hidden-layer-type]))
-                :value     (:hidden-layer-type (:train-opts settings))}
-               (for [choice (:hidden-layer-choices settings)]
+                                 (om/update! settings [:mutation-opts :hidden-type]))
+                :value     (:hidden-type (:train-opts settings))}
+               (for [choice (:hidden-choices settings)]
                  [:option {:value choice} (name choice)])]]]
 
             [:.form-group
              [:label.control-label {:class label-class} "Output layer"]
              [:div {:class input-class}
               [:select.form-control
-               {:value (:out-layer-type (:train-opts settings))
+               {:value (:out-type (:train-opts settings))
                 :on-change #(->> (.. % -target -value)
                                  (str->keyword)
-                                 (om/update! settings [:mutation-opts :out-layer-type]))}
-               (for [choice (:out-layer-choices settings)]
+                                 (om/update! settings [:mutation-opts :out-type]))}
+               (for [choice (:out-choices settings)]
                  [:option {:value choice} (name choice)])]]]
 
             [:.form-group
@@ -187,8 +187,7 @@
 
   (render-state [_ {:keys [visible? selected-case-num hover-chan]}]
     (html
-      (let [{:keys [ms-took cases]} solving
-            best-case (first (sort-by :mean-error cases))
+      (let [{:keys [cases best-case ms-took]} solving
             preview-case (if (= selected-case-num :none)
                            best-case
                            (first (filter #(= (:number %) selected-case-num) cases)))]
@@ -208,11 +207,11 @@
            [:table.table.table-condensed.table-hover
             [:thead [:tr [:th "Operation"] [:th "Error"] [:th "Variance"]]]
             [:tbody
-             (for [{err :mean-error :as case} cases]
+             (for [{number :number :as case} cases]
                (om/build solving-case-block
                          {:solving-case case
                           :hover-chan hover-chan
-                          :best? (= err (:mean-error best-case))}))]]]]]))))
+                          :best? (= number (:number best-case))}))]]]]]))))
 
 (defcomponent solvings-panel [{:keys [solvings]}]
   (render [_]
@@ -245,13 +244,12 @@
                  (.debug js/console (str "Received command:" (:command message)))
                  (case (:command message)
                    ::commands/init (let [{opts :opts} message
-                                       hidden-type (first (:hidden-layer-choices opts))
-                                       out-type (first (:out-layer-choices opts))]
+                                       hidden-type (first (:hidden-choices opts))
+                                       out-type (first (:out-choices opts))]
                                    (om/transact! settings #(merge % opts))
-                                   (om/update! settings [:mutation-opts :hidden-layer-type] hidden-type)
-                                   (om/update! settings [:mutation-opts :out-layer-type] out-type))
-                   ::commands/step (let [{:keys [solving]} message]
-                                   (om/transact! solvings #(conj % solving)))
+                                   (om/update! settings [:mutation-opts :hidden-type] hidden-type)
+                                   (om/update! settings [:mutation-opts :out-type] out-type))
+                   ::commands/step (om/transact! solvings #(conj % (:solving message)))
                    ::commands/finished (om/update! cursor :running? false))
                  (recur (<! connection))))))
   (render-state [_ {:keys [start-chan]}]
