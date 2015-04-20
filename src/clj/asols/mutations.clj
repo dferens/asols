@@ -3,9 +3,15 @@
             [asols.trainer :as trainer]))
 
 (def operations
-  #{::add-neuron ::del-neuron
+  #{::identity
+    ::add-neuron ::del-neuron
     ::add-edge   ::del-edge
     ::add-layer})
+
+(defn identity-mutations
+  [net]
+  [{:operation ::identity
+    :network net}])
 
 (defn add-neurons-mutations
   "Return mutations for adding new neurons to existing hidden layers.

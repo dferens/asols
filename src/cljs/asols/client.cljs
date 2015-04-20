@@ -125,6 +125,9 @@
 
 (defmulti mutation-view :operation)
 
+(defmethod mutation-view :asols.mutations/identity [m]
+  [:p "Nothing"])
+
 (defmethod mutation-view :asols.mutations/add-neuron [m]
   [:p "Added node "
    [:span.label.label-primary (name (:added-neuron m))]])

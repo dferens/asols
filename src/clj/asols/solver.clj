@@ -23,6 +23,7 @@
 (defn- get-mutations
   [net opts]
   (concat
+    (mutations/identity-mutations net)
     (mutations/add-edges-mutations net)
     (mutations/add-neurons-mutations net)
     (when (:remove-nodes? opts) (mutations/remove-neurons-mutations net))
