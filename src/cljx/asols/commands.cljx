@@ -2,7 +2,7 @@
 
 
 (def ^:private commands
-  #{::init ::start ::step ::finished})
+  #{::init ::start ::progress ::step ::finished})
 
 (defrecord TrainOpts [learning-rate momentum weight-decay iter-count])
 
@@ -23,6 +23,14 @@
   {:command ::init
    :opts    {:hidden-choices hidden-types
              :out-choices    out-types}})
+
+#+clj
+(defn progress
+  [mutation value]
+  {:pre [(<= 0 value 1)]}
+  {:command ::progress
+   :mutation mutation
+   :value (double value)})
 
 #+clj
 (defn step

@@ -17,6 +17,7 @@
 (defonce app-state
   (atom {:connection nil
          :running?   false
+         :progress   nil
          :settings   {:train-opts    (TrainOpts. 0.3 0.9 5E-4 1000)
                       :mutation-opts (MutationOpts. nil nil 5 true true)
                       :hidden-choices []
@@ -53,6 +54,20 @@
                                      value
                                      cleaned-value)]
                   (om/update! cursor path final-value))}]))
+
+(defcomponent progress-bar [{:keys [value]}]
+  (render [_]
+    (html
+      (let [percents (-> (int (* value 100))
+                         (min 100)
+                         (max 0))]
+        [:.progress
+         [:.progress-bar {:role "progressbar"
+                          :aria-value-now percents
+                          :aria-value-min 0
+                          :aria-value-max 100
+                          :style {:width (str percents "%")}}
+          (gstring/format "%d%% complete" percents)]]))))
 
 (defcomponent settings-panel [{:keys [start-chan running? settings]} owner]
   (render [_]
@@ -126,28 +141,28 @@
 (defmulti mutation-view :operation)
 
 (defmethod mutation-view :asols.mutations/identity [m]
-  [:p "Nothing"])
+  [:span "nothing"])
 
 (defmethod mutation-view :asols.mutations/add-neuron [m]
-  [:p "Added node "
+  [:span "added node "
    [:span.label.label-primary (name (:added-neuron m))]])
 
 (defmethod mutation-view :asols.mutations/add-edge [m]
   (let [[node-from node-to] (:added-edge m)]
-    [:p "Added edge "
+    [:span "added edge "
      [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
 
 (defmethod mutation-view :asols.mutations/del-neuron [m]
-  [:p "Removed node "
+  [:span "removed node "
    [:span.label.label-primary (name (:deleted-neuron m))]])
 
 (defmethod mutation-view :asols.mutations/del-edge [m]
   (let [[node-from node-to] (:deleted-edge m)]
-    [:p "Removed edge "
+    [:span "removed edge "
      [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
 
 (defmethod mutation-view :asols.mutations/add-layer [m]
-  [:p (gstring/format "Added hidden layer at %s " (:layer-index m))
+  [:span (gstring/format "added hidden layer at %s " (:layer-index m))
    [:span.label.label-info (name (:layer-type m))]])
 
 (defn format-error [error]
@@ -173,7 +188,7 @@
          [:td (format-error mean-error)]
          [:td (format-variance variance)]]))))
 
-(defcomponent solving-block [{:keys [solving]} owner]
+(defcomponent solving-block [{:keys [number solving]} owner]
   (init-state [_]
     {:visible? false
      :selected-case-num :none
@@ -195,6 +210,7 @@
          [:.row
           [:.col-sm-7
            [:p {:on-click #(om/update-state! owner :visible? not)}
+            (gstring/format "%d. " number)
             (mutation-view (:mutation best-case))]]
           [:.col-sm-5.stats
            [:span.label.label-info (format-variance (:variance best-case))]
@@ -217,13 +233,25 @@
   (render [_]
     (html
       [:.solvings
-       [:.panel.panel-default
+       [:.panel.panel-primary
         [:.panel-heading "Mutations"]
         [:ul.list-group
          (for [i (range (count solvings))]
            (om/build solving-block
                      {:number  (inc i) :solving (nth solvings i)}
                      {:react-key i}))]]])))
+
+(defcomponent stats-panel [{:keys [running? progress]}]
+  (render [_]
+    (html
+      [:.panel.panel-success
+       [:.panel-heading "Stats"]
+       [:.panel-body
+        (when (and running? progress)
+          [:.row-fluid
+           [:.col-sm-12
+            [:p "Current mutation: "[:b (mutation-view (:mutation progress))]]
+            (om/build progress-bar {:value (:value progress)})]])]])))
 
 (defcomponent app [{:keys [connection settings running? solvings] :as cursor} owner]
   (init-state [_]
@@ -243,14 +271,23 @@
                (let [{message :message} frame]
                  (.debug js/console (str "Received command:" (:command message)))
                  (case (:command message)
-                   ::commands/init (let [{opts :opts} message
-                                       hidden-type (first (:hidden-choices opts))
-                                       out-type (first (:out-choices opts))]
-                                   (om/transact! settings #(merge % opts))
-                                   (om/update! settings [:mutation-opts :hidden-type] hidden-type)
-                                   (om/update! settings [:mutation-opts :out-type] out-type))
-                   ::commands/step (om/transact! solvings #(conj % (:solving message)))
-                   ::commands/finished (om/update! cursor :running? false))
+                   ::commands/init
+                   (let [{opts :opts} message
+                         hidden-type (first (:hidden-choices opts))
+                         out-type (first (:out-choices opts))]
+                     (om/transact! settings #(merge % opts))
+                     (om/update! settings [:mutation-opts :hidden-type] hidden-type)
+                     (om/update! settings [:mutation-opts :out-type] out-type))
+
+                   ::commands/progress
+                   (om/update! cursor :progress {:mutation (:mutation message)
+                                                 :value (:value message)})
+
+                   ::commands/step
+                   (om/transact! solvings #(conj % (:solving message)))
+
+                   ::commands/finished
+                   (om/update! cursor :running? false))
                  (recur (<! connection))))))
   (render-state [_ {:keys [start-chan]}]
     (html
@@ -262,8 +299,10 @@
                                    :settings settings})]]
        [:.row-fluid
         [:.col-md-12
-         (om/build solvings-panel {:solvings solvings})]]])
-                ))
+         (om/build solvings-panel {:solvings solvings})]]
+       [:.row-fluid
+        [:.col-md-12
+         (om/build stats-panel cursor)]]])))
 
 (defn- start []
   (.debug js/console "Starting app")

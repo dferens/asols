@@ -1,13 +1,12 @@
 (ns asols.solver
-  (:require [clojure.core.async :refer [<! >! close! go go-loop]]
+  (:require [clojure.core.async :refer [<! >! chan close! go go-loop]]
             [clojure.core.matrix.stats :refer [mean variance]]
             [asols.network :as network]
             [asols.trainer :as trainer]
             [asols.mutations :as mutations]
             [asols.commands :as commands]
             [asols.graphics :as graphics]
-            [asols.data :as data])
-  (:import (asols.commands TrainOpts SolvingCase Solving MutationOpts)))
+            [asols.data :as data]))
 
 (defn- create-start-net
   [inputs-count outputs-count mutation-opts]
@@ -43,18 +42,20 @@
     (mutations/add-layers-mutations net)))
 
 (defn- solve-net
-  [net dataset train-opts mutation-opts]
+  [net error-fn mutation-opts progress-chan]
   (let [started (System/nanoTime)
-        train #(calc-mean-error % dataset mutation-opts train-opts)
         mutations (get-mutations net mutation-opts)
         cases (vec (for [number (range (count mutations))
-                         :let [{new-net :network :as mut} (nth mutations number)
-                               [mean-error variance] (train new-net)
-                               graph (graphics/render-network new-net)]]
-                     (SolvingCase. number mut mean-error variance graph)))
+                         :let [{new-net :network :as m} (nth mutations number)
+                               [mean-error variance] (error-fn new-net)
+                               graph (graphics/render-network new-net)
+                               progress (/ (inc number) (count mutations))]]
+                     (do
+                       (go (>! progress-chan {:mutation m :value progress}))
+                       (commands/->SolvingCase number m mean-error variance graph))))
         ms-took (/ (double (- (System/nanoTime) started)) 1E6)
         best-case (first (sort-by :mean-error cases))]
-    (Solving. cases best-case ms-took)))
+    (commands/->Solving cases best-case ms-took)))
 
 (defn init [in-chan out-chan]
   (go (>! out-chan (commands/init (trainer/hidden-types) (trainer/out-types))))
@@ -65,9 +66,14 @@
         ::commands/start
         (let [{:keys [train-opts mutation-opts]} command
               dataset data/xor
+              progress-chan (chan)
               start-net (create-start-net 2 2 mutation-opts)
               error-fn #(calc-mean-error % dataset mutation-opts train-opts)
-              solve-fn #(solve-net % dataset train-opts mutation-opts)]
+              solve-fn #(solve-net % error-fn mutation-opts progress-chan)]
+          (go-loop [{:keys [value mutation]} (<! progress-chan)]
+            (when-not (nil? value)
+              (>! out-chan (commands/progress mutation value))
+              (recur (<! progress-chan))))
           (loop [net start-net
                  [current-error _] (error-fn start-net)]
             (let [solving (solve-fn net)
