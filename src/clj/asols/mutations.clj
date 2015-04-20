@@ -71,4 +71,6 @@
           new-net (network/add-layer net layer-type layer-i)
           node-splitter #(network/split-node %1 (inc layer-i) %2)]
       {:operation ::add-layer
+       :layer-type layer-type
+       :layer-index layer-i
        :network (reduce node-splitter new-net nodes)})))

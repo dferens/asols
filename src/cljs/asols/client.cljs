@@ -147,7 +147,8 @@
      [:span.label.label-success (gstring/format "%s -> %s" node-from node-to)]]))
 
 (defmethod mutation-view :asols.mutations/add-layer [m]
-  [:p "Added hidden layer"])
+  [:p (gstring/format "Added hidden layer at %s " (:layer-index m))
+   [:span.label.label-info (name (:layer-type m))]])
 
 (defn format-error [error]
   (gstring/format "%.5f" error))
@@ -213,7 +214,7 @@
                           :hover-chan hover-chan
                           :best? (= err (:mean-error best-case))}))]]]]]))))
 
-(defcomponent solvings-panel [{:keys [solvings] :as cursor}]
+(defcomponent solvings-panel [{:keys [solvings]}]
   (render [_]
     (html
       [:.solvings
