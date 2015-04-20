@@ -1,6 +1,6 @@
 (ns asols.server
   (:require [chord.http-kit :refer [with-channel]]
-            [clojure.core.async :refer [<! >! close! go go-loop]]
+            [clojure.core.async :refer [<! >! chan close! go go-loop]]
             [compojure.core :refer [defroutes GET]]
             [compojure.handler :refer [site]]
             [org.httpkit.server :as http]
@@ -9,9 +9,8 @@
             [ring.middleware.resource :refer [wrap-resource]]
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.not-modified :refer [wrap-not-modified]]
-            [asols.solver :as solver]
-            [asols.worker :as worker]
-            [asols.trainer :as trainer]))
+            [asols.solver :refer [init]]
+            [asols.commands :refer [deserialize]]))
 
 (defn index [req]
   (-> (slurp "resources/public/templates/index.html")
@@ -19,39 +18,21 @@
       (resp/header "Content-Type" "text/html; charset=utf-8")))
 
 (defn ws-handler [req]
-  (with-channel req chan {:format :transit-json}
+  (with-channel
+    req chord-chan {:format :transit-json}
     (prn "Client connected")
-    (go (>! chan (worker/init-command (trainer/hidden-layers-types) (trainer/out-layers-types))))
-    (go-loop [frame (<! chan)]
-      (if (nil? frame)
-        (prn "Client disconnected")
-        (let [{message :message} frame]
-          (prn "Received:" message)
-          (if (= (:command message) ::worker/start)
-            (let [{:keys [train-opts mutation-opts]} message
-                  train-opts (worker/map->TrainOpts train-opts)
-                  mutation-opts (worker/map->MutationOpts mutation-opts)
-                  dataset [[[0 0] [1 0]]
-                           [[1 1] [1 0]]
-                           [[1 0] [0 1]]
-                           [[0 1] [0 1]]]
-                  start-net (solver/create-start-net 2 2 mutation-opts)]
-              (loop [net start-net
-                     current-error nil]
-                (let [solving (solver/step-net net dataset train-opts mutation-opts)
-                      best-case (first (sort-by :mean-error (:cases solving)))
-                      {:keys [mean-error mutation]} best-case
-                      better? (or (nil? current-error)
-                                  (< mean-error current-error))]
-                  (if (and better? (> mean-error 1E-4))
-                    (do
-                      (>! chan (worker/step-command solving))
-                      (prn "Sent step")
-                      (recur (:network mutation) mean-error))
-                    (do
-                      (>! chan (worker/step-command solving))
-                      (>! chan (worker/finished-command))))))))
-          (recur (<! chan)))))))
+    (let [in-chan (chan)
+          out-chan chord-chan]
+      (go-loop [frame (<! chord-chan)]
+        (if (nil? frame)
+          (do
+            (prn "Client disconnected")
+            (close! in-chan))
+          (let [{message :message} frame]
+            (>! in-chan (deserialize message))
+            (recur (<! chord-chan)))))
+
+      (init in-chan out-chan))))
 
 (defroutes app-routes
   (GET "/" [] index)

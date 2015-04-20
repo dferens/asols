@@ -65,7 +65,7 @@
   "Returns mutations for adding new hidden layers to net"
   [net]
   (for [layer-i (range (count (:layers net)))
-        layer-type (trainer/hidden-layers-types)
+        layer-type (trainer/hidden-types)
         :when (pos? layer-i)]
     (let [{:keys [nodes]} (nth (:layers net) layer-i)
           new-net (network/add-layer net layer-type layer-i)

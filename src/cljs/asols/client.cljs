@@ -7,7 +7,7 @@
             [goog.string :as gstring]
             [goog.string.format]
             [figwheel.client :as fw]
-            [asols.worker :refer [TrainOpts MutationOpts] :as worker])
+            [asols.commands :refer [TrainOpts MutationOpts] :as commands])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
 (defn- str->keyword
@@ -235,7 +235,7 @@
              (om/update! cursor :running? true)
              (om/update! cursor :solvings [])
              (let [{:keys [train-opts mutation-opts]} @settings]
-               (>! connection (worker/start-command train-opts mutation-opts)))
+               (>! connection (commands/start train-opts mutation-opts)))
              (recur))
 
     (go-loop [frame (<! connection)]
@@ -243,15 +243,15 @@
                (let [{message :message} frame]
                  (.debug js/console (str "Received command:" (:command message)))
                  (case (:command message)
-                   ::worker/init (let [{opts :opts} message
+                   ::commands/init (let [{opts :opts} message
                                        hidden-type (first (:hidden-layer-choices opts))
                                        out-type (first (:out-layer-choices opts))]
                                    (om/transact! settings #(merge % opts))
                                    (om/update! settings [:mutation-opts :hidden-layer-type] hidden-type)
                                    (om/update! settings [:mutation-opts :out-layer-type] out-type))
-                   ::worker/step (let [{:keys [solving]} message]
+                   ::commands/step (let [{:keys [solving]} message]
                                    (om/transact! solvings #(conj % solving)))
-                   ::worker/finished (om/update! cursor :running? false))
+                   ::commands/finished (om/update! cursor :running? false))
                  (recur (<! connection))))))
   (render-state [_ {:keys [start-chan]}]
     (html

@@ -1,9 +1,9 @@
 (ns asols.trainer
-  (:require [clojure.core.matrix.stats :refer [sum sum-of-squares mean variance]]
+  (:require [clojure.core.matrix.stats :refer [sum sum-of-squares]]
             [clojure.set :as set]
-            [asols.worker]
-            [asols.network :as network])
-  (:import (asols.worker TrainOpts)))
+            [asols.network :as network]
+            [asols.commands])
+  (:import (asols.commands TrainOpts)))
 
 (defmulti forward
   "Accepts weighted sums of each neuron as input vector, computes output vector.
@@ -20,14 +20,14 @@
   (fn [layer out-vector target-vector] (:type layer)))
 
 
-(defn hidden-layers-types
+(defn hidden-types
   "Returns all available hidden layers types"
   []
   (let [forward-implementers (into #{} (keys (methods forward)))
         derivative-implementers (into #{} (keys (methods derivative)))]
     (set/intersection forward-implementers derivative-implementers)))
 
-(defn out-layers-types
+(defn out-types
   "Returns all available output layers types"
   []
   (let [forward-implementers (into #{} (keys (methods forward)))
@@ -155,6 +155,7 @@
 (defn train
   "Trains given network on dataset with given opts, returns new net"
   [net dataset train-opts]
+  {:pre [(instance? TrainOpts train-opts)]}
   (loop [net net
          dataset-left (apply concat (repeat (:iter-count train-opts) dataset))
          delta-weights nil]
@@ -183,14 +184,3 @@
   "Calculates error on given dataset for given network"
   [net dataset]
   (sum (map #(calc-error-on-vector net %) dataset)))
-
-(defn calc-mean-error
-  "Returns mean error & variance after training given net @times times"
-  [net dataset times train-opts]
-  {:pre [(instance? TrainOpts train-opts)]}
-  (let [net-errors (for [_ (range times)]
-                     (-> (network/reset-weights net)
-                         (train dataset train-opts)
-                         (calc-error dataset)))]
-    [(mean net-errors)
-     (variance net-errors)]))
