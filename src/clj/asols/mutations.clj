@@ -18,13 +18,9 @@
   Each new neuron will be fully connected to prev & next layers."
   [net]
   (for [index (range (count (network/hidden-layers net)))]
-    (let [prev-layer (nth (:layers net) index)
-          next-layer (nth (:layers net) (+ index 2))
-          [new-net new-node] (network/add-node net (inc index))]
-      {:operation    ::add-neuron
-       :network      (as-> new-net $
-                           (reduce #(network/add-edge %1 %2 new-node) $ (:nodes prev-layer))
-                           (reduce #(network/add-edge %1 new-node %2) $ (:nodes next-layer)))
+    (let [[new-net new-node] (network/add-node net (inc index))]
+      {:operation ::add-neuron
+       :network (network/full-connect new-net (inc index) new-node)
        :added-neuron new-node})))
 
 (defn add-edges-mutations

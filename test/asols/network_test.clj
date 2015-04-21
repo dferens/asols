@@ -101,6 +101,13 @@
                [:f :d] [:f :e] [:g :d] [:g :e]
                [:d :c] [:e :c]})))))
 
+(deftest full-connect-test
+  (let [net (-> (network 2 1 :out) (add-layer :hidden))
+        [new-net new-node] (add-node net 1)
+        connected-net (full-connect new-net 1 new-node)]
+    (is (= (into #{} (keys (:edges connected-net)))
+           #{[:a :d] [:b :d] [:d :c]}))))
+
 (deftest network-test
   (is (= (network 1 2 :out-type)
          (->Network [(->Layer ::asols.network/input [:a])

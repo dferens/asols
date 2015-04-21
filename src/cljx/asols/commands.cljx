@@ -21,8 +21,8 @@
 #+clj
 (defn init [hidden-types out-types]
   {:command ::init
-   :opts    {:hidden-choices hidden-types
-             :out-choices    out-types}})
+   :hidden-choices hidden-types
+   :out-choices    out-types})
 
 #+clj
 (defn progress

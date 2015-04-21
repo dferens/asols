@@ -166,6 +166,17 @@
           (reduce edge-mover $ edges-to-move)
           (reduce edge-adder $ (:nodes next-layer)))))
 
+(defn full-connect
+  "Adds all possible edges of given node with surrounding layers"
+  [net layer-i target-node]
+  {:pre [(< 0 layer-i (dec (count (:layers net))))]}
+  (let [[prev-layer next-layer] (->> [(dec layer-i) (inc layer-i)]
+                                     (map #(nth (:layers net) %)))
+        in-edges (for [node (:nodes prev-layer)] [node target-node])
+        out-edges (for [node (:nodes next-layer)] [target-node node])
+        edges-adder (fn [net [a b]] (add-edge net a b))]
+    (reduce edges-adder net (concat in-edges out-edges))))
+
 (defn reset-weights
   [network]
   (let [new-edges (for [[k _] (:edges network)]

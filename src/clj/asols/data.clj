@@ -7,7 +7,7 @@
 
 (defrecord Entry [input-vec target-vec])
 
-(defrecord Dataset [train test])
+(defrecord Dataset [train test inputs-count outputs-count])
 
 (defn- entry
   [input-vec target-vec]
@@ -22,7 +22,7 @@
                  (entry [1 1] [1 0])
                  (entry [1 0] [0 1])
                  (entry [0 1] [0 1])]]
-    (->Dataset entries entries)))
+    (->Dataset entries entries 2 2)))
 
 (def monks1
   "
@@ -47,4 +47,4 @@
                   in-vec (rest parsed-line)]
               (entry in-vec out-vec))))
         [train test] (map (comp vec read-file) files)]
-    (->Dataset train test)))
+    (->Dataset train test 6 2)))

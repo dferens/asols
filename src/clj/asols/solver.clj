@@ -26,19 +26,14 @@
 (defrecord Solver [dataset train-opts mutation-opts]
   SolverProtocol
   (create-start-net [_]
-    (let [{:keys [input-vec target-vec]} (first (:train dataset))
-          inputs-count (count (into [] input-vec))
-          outputs-count (count (into [] target-vec))
+    (let [{:keys [inputs-count outputs-count]} dataset
           hidden-type (:hidden-type mutation-opts)
           out-type (:out-type mutation-opts)
           [net h1] (-> (network/network inputs-count outputs-count out-type)
                        (network/add-layer hidden-type)
-                       (network/add-node 1))
-          in-nodes (:nodes (first (:layers net)))
-          out-nodes (:nodes (last (:layers net)))]
+                       (network/add-node 1))]
       (-> net
-          (network/add-edge (first in-nodes) h1)
-          (network/add-edge h1 (first out-nodes))
+          (network/full-connect 1 h1)
           (trainer/train dataset train-opts))))
 
   (get-mutations [_ net]
