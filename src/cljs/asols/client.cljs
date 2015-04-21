@@ -22,7 +22,8 @@
                       :mutation-opts (MutationOpts. nil nil true true)
                       :hidden-choices []
                       :out-choices []}
-         :solvings   []}))
+         :solvings   []
+         :failed-solving nil}))
 
 (defn- checkbox
   "Simple checkbox which binds its value to path in cursor"
@@ -178,10 +179,10 @@
          [:td (format-error train-error)]
          [:td (format-error test-error)]]))))
 
-(defcomponent solving-block [{:keys [number solving]} owner]
+(defcomponent solving-block [{:keys [number solving visible?]
+                              :or {visible? false}} owner]
   (init-state [_]
-    {:visible? false
-     :selected-case-id :none
+    {:selected-case-id :none
      :hover-chan (chan)})
 
   (will-mount [_]
@@ -191,7 +192,7 @@
           (om/set-state! owner :selected-case-id selected-case-num)
           (recur (<! hover-chan))))))
 
-  (render-state [_ {:keys [visible? selected-case-id hover-chan]}]
+  (render-state [_ {:keys [selected-case-id hover-chan]}]
     (html
       (let [{:keys [cases best-case ms-took]} solving
             preview-case (if (= selected-case-id :none)
@@ -201,7 +202,7 @@
          [:.row {:on-click #(om/update-state! owner :visible? not)}
           [:.col-xs-7
            [:span
-            (gstring/format "%d. " number)
+            (when number (gstring/format "%d. " number))
             (mutation-view (:mutation best-case))]]
           [:.col-xs-5.stats
            [:span.label.label-warning
@@ -238,6 +239,14 @@
            (om/build solving-block
                      {:number  (inc i) :solving (nth solvings i)}
                      {:react-key i}))]]])))
+
+(defcomponent failed-solving-panel [solving]
+  (render [_]
+    (html
+      [:.panel.panel-info
+       [:.panel-heading "Further tryings:"]
+       [:ul.list-group
+        (om/build solving-block {:solving solving :visible? true})]])))
 
 (defcomponent stats-panel [{:keys [running? progress]}]
   (render [_]
@@ -286,7 +295,9 @@
               (om/transact! solvings #(conj % (:solving message)))
 
               ::commands/finished
-              (om/update! cursor :running? false))
+              (do
+                (om/update! cursor :failed-solving (:solving message))
+                (om/update! cursor :running? false)))
             (recur (<! connection)))))))
   (render-state [_ {:keys [start-chan]}]
     (html
@@ -299,6 +310,11 @@
        [:.row-fluid
         [:.col-md-12
          (om/build solvings-panel {:solvings solvings})]]
+
+       [:.row-fluid
+        [:.col-md-12
+         (om/build failed-solving-panel (:failed-solving cursor))]]
+
        [:.row-fluid
         [:.col-md-12
          (om/build stats-panel cursor)]]])))
