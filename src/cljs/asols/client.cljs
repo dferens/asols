@@ -168,14 +168,15 @@
 
 (defcomponent solving-case-block [{:keys [solving-case hover-chan case-id best?]}]
   (render [_]
-    (let [{:keys [error]} solving-case]
+    (let [{:keys [train-error test-error]} solving-case]
       (html
         [:tr
          {:class         (when best? "success")
           :on-mouse-over #(go (>! hover-chan case-id))
           :on-mouse-out  #(go (>! hover-chan :none))}
          [:td (mutation-view (:mutation solving-case))]
-         [:td (format-error error)]]))))
+         [:td (format-error train-error)]
+         [:td (format-error test-error)]]))))
 
 (defcomponent solving-block [{:keys [number solving]} owner]
   (init-state [_]
@@ -203,14 +204,17 @@
             (gstring/format "%d. " number)
             (mutation-view (:mutation best-case))]]
           [:.col-xs-5.stats
-           [:span.label.label-danger (format-error (:error best-case))]
+           [:span.label.label-warning
+            "Train " (format-error (:train-error best-case))]
+           [:span.label.label-danger
+            "Test " (format-error (:test-error best-case))]
            [:span.label.label-default (format-time ms-took)]]]
          [:.row {:class (when-not visible? "hidden")}
           [:.col-xs-5
            {:dangerouslySetInnerHTML {:__html (:graph preview-case)}}]
           [:.col-xs-7
            [:table.table.table-condensed.table-hover
-            [:thead [:tr [:th "Operation"] [:th "Error"]]]
+            [:thead [:tr [:th "Operation"] [:th "Train error"] [:th "Test error"]]]
             [:tbody
              (om/build solving-case-block {:solving-case best-case
                                            :hover-chan hover-chan

@@ -8,7 +8,7 @@
 
 (defrecord MutationOpts [hidden-type out-type remove-edges? remove-nodes?])
 
-(defrecord SolvingCase [mutation error graph])
+(defrecord SolvingCase [mutation train-error test-error graph])
 
 (defrecord Solving [best-case cases ms-took])
 

@@ -7,6 +7,7 @@
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/clojurescript "0.0-2850"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
+                 [org.clojure/data.csv "0.1.2"]
                  [org.omcljs/om "0.8.8"]
                  [prismatic/om-tools "0.3.11"]
                  [figwheel "0.2.6"]
@@ -16,6 +17,7 @@
                  [dorothy "0.0.6"]
                  [jarohen/chord "0.6.0"]
                  [compojure "1.3.1"]
+                 [net.mikera/vectorz-clj "0.29.0"]
                  [net.mikera/core.matrix.stats "0.5.0"]]
 
   :bower-dependencies [[flat-ui "2.2.2"]]

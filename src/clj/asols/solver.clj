@@ -18,14 +18,17 @@
 (defprotocol SolverProtocol
   (create-start-net [this])
   (get-mutations [this net])
-  (calc-error [this net])
+  (calc-train-error [this net])
+  (calc-test-error [this net])
   (solve-mutation [this mutation])
   (solve-net [this net progress-chan]))
 
 (defrecord Solver [dataset train-opts mutation-opts]
   SolverProtocol
   (create-start-net [_]
-    (let [[inputs-count outputs-count] (map count (first dataset))
+    (let [{:keys [input-vec target-vec]} (first (:train dataset))
+          inputs-count (count (into [] input-vec))
+          outputs-count (count (into [] target-vec))
           hidden-type (:hidden-type mutation-opts)
           out-type (:out-type mutation-opts)
           [net h1] (-> (network/network inputs-count outputs-count out-type)
@@ -48,15 +51,19 @@
         (when remove-edges? (mutations/remove-edges-mutations net))
         (mutations/add-layers-mutations net))))
 
-  (calc-error [_ net]
-    (trainer/calc-error net dataset))
+  (calc-train-error [_ net]
+    (trainer/calc-error net (:train dataset)))
+
+  (calc-test-error [_ net]
+    (trainer/calc-error net (:test dataset)))
 
   (solve-mutation [this {net :network :as mutation}]
     (let [graph (graphics/render-network net)
           trained-net (trainer/train net dataset train-opts)
-          error (calc-error this trained-net)
+          train-error (calc-train-error this trained-net)
+          test-error (calc-test-error this trained-net)
           new-mutation (assoc mutation :network trained-net)]
-      (commands/->SolvingCase new-mutation error graph)))
+      (commands/->SolvingCase new-mutation train-error test-error graph)))
 
   (solve-net [this net progress-chan]
     (let [mutations (get-mutations this net)
@@ -66,7 +73,7 @@
                         progress (/ (inc i) (count mutations))
                         _ (go (>! progress-chan {:mutation m :value progress}))]
                     case))
-          [[[best-case] cases] ms-took] (time-it (split-at 1 (sort-by :error cases)))]
+          [[[best-case] cases] ms-took] (time-it (split-at 1 (sort-by :test-error cases)))]
       (commands/->Solving best-case cases ms-took))))
 
 (defn init [in-chan out-chan]
@@ -77,11 +84,11 @@
       (case (:command command)
         ::commands/start
         (let [{:keys [train-opts mutation-opts]} command
-              dataset data/xor
+              dataset data/monks1
               solver (->Solver dataset train-opts mutation-opts)
               progress-chan (chan)
               start-net (create-start-net solver)
-              start-error (calc-error solver start-net)]
+              start-error (calc-test-error solver start-net)]
           (go-loop [{:keys [mutation value]} (<! progress-chan)]
             (when-not (nil? value)
               (>! out-chan (commands/progress mutation value))
@@ -89,13 +96,13 @@
           (loop [current-net start-net
                  current-error start-error]
             (let [solving (solve-net solver current-net progress-chan)
-                  {:keys [error mutation]} (:best-case solving)]
-              (if (and (< error current-error)
-                       (> error 1E-4))
+                  {:keys [test-error mutation]} (:best-case solving)]
+              (if (and (< test-error current-error)
+                       (> test-error 1E-4))
                 (do
                   (>! out-chan (commands/step solving))
                   (prn "Sent step")
-                  (recur (:network mutation) error))
+                  (recur (:network mutation) test-error))
                 (do
                   (prn "Finished")
                   (>! out-chan (commands/finished solving)))))))
