@@ -6,7 +6,7 @@
 
 (defrecord TrainOpts [learning-rate momentum weight-decay iter-count])
 
-(defrecord MutationOpts [hidden-type out-type remove-edges? remove-nodes?])
+(defrecord MutationOpts [hidden-type out-type remove-edges? remove-nodes? add-layers?])
 
 (defrecord SolvingCase [mutation train-error test-error graph])
 

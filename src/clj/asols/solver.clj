@@ -37,14 +37,14 @@
           (trainer/train dataset train-opts))))
 
   (get-mutations [_ net]
-    (let [{:keys [remove-nodes? remove-edges?]} mutation-opts]
+    (let [{:keys [remove-nodes? remove-edges? add-layers?]} mutation-opts]
       (concat
         (mutations/identity-mutations net)
         (mutations/add-edges-mutations net)
         (mutations/add-neurons-mutations net)
         (when remove-nodes? (mutations/remove-neurons-mutations net))
         (when remove-edges? (mutations/remove-edges-mutations net))
-        (mutations/add-layers-mutations net))))
+        (when add-layers? (mutations/add-layers-mutations net)))))
 
   (calc-train-error [_ net]
     (trainer/calc-error net (:train dataset)))

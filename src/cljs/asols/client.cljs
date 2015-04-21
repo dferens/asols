@@ -14,16 +14,53 @@
   [value]
   (keyword (apply str (rest value))))
 
+(defn- parse-float
+  [string]
+  (if (= string "0.")
+    string
+    (js/parseFloat string)))
+
+;; App state management
+
 (defonce app-state
   (atom {:connection nil
          :running?   false
          :progress   nil
          :settings   {:train-opts    (TrainOpts. 0.3 0.9 5E-4 1000)
-                      :mutation-opts (MutationOpts. nil nil true true)
+                      :mutation-opts (MutationOpts. nil nil true true true)
                       :hidden-choices []
                       :out-choices []}
          :solvings   []
          :failed-solving nil}))
+
+(defn init [app hidden-choices out-choices]
+  (-> app
+      (assoc-in [:settings :hidden-choices] hidden-choices)
+      (assoc-in [:settings :out-choices] out-choices)
+      (assoc-in [:settings :mutation-opts :hidden-type] (first hidden-choices))
+      (assoc-in [:settings :mutation-opts :out-type] (first out-choices))))
+
+(defn start [app]
+  (let [{:keys [train-opts mutation-opts]} (:settings app)
+        start-cmd (commands/start train-opts mutation-opts)]
+    (go (>! (:connection app) start-cmd)))
+  (assoc app :running? true
+             :solvings []
+             :failed-solving nil
+             :progress nil))
+
+(defn update-progress [app mutation progress-value]
+  (assoc app  :progress {:mutation mutation
+                         :value progress-value}))
+
+(defn new-solving [app solving]
+  (update-in app [:solvings] conj solving))
+
+(defn finish [app failed-solving]
+  (assoc app :failed-solving failed-solving
+             :running? false))
+
+;; Widgets
 
 (defn- checkbox
   "Simple checkbox which binds its value to path in cursor"
@@ -85,15 +122,15 @@
             [:.form-group
              [:label.control-label {:class label-class} "Learning rate"]
               [:div {:class input-class}
-               (input settings [:train-opts :learning-rate] js/parseFloat)]]
+               (input settings [:train-opts :learning-rate] parse-float)]]
             [:.form-group
              [:label.control-label {:class label-class} "Momentum"]
              [:div {:class input-class}
-              (input settings [:train-opts :momentum] js/parseFloat)]]
+              (input settings [:train-opts :momentum] parse-float)]]
             [:.form-group
              [:label.control-label {:class label-class} "Weight decay"]
              [:div {:class input-class}
-              (input settings [:train-opts :weight-decay] js/parseFloat)]]
+              (input settings [:train-opts :weight-decay] parse-float)]]
             [:.form-group
              [:label.control-label {:class label-class} "Iterations"]
              [:div {:class input-class}
@@ -130,7 +167,8 @@
                  [:option {:value choice} (name choice)])]]]
 
             (checkbox settings [:mutation-opts :remove-edges?] "Remove edges?")
-            (checkbox settings [:mutation-opts :remove-nodes?] "Remove nodes?")]]]]]))))
+            (checkbox settings [:mutation-opts :remove-nodes?] "Remove nodes?")
+            (checkbox settings [:mutation-opts :add-layers?] "Add layers?")]]]]]))))
 
 (defmulti mutation-view :operation)
 
@@ -182,7 +220,8 @@
 (defcomponent solving-block [{:keys [number solving visible?]
                               :or {visible? false}} owner]
   (init-state [_]
-    {:selected-case-id :none
+    {:visible? visible?
+     :selected-case-id :none
      :hover-chan (chan)})
 
   (will-mount [_]
@@ -192,7 +231,7 @@
           (om/set-state! owner :selected-case-id selected-case-num)
           (recur (<! hover-chan))))))
 
-  (render-state [_ {:keys [selected-case-id hover-chan]}]
+  (render-state [_ {:keys [visible? selected-case-id hover-chan]}]
     (html
       (let [{:keys [cases best-case ms-took]} solving
             preview-case (if (= selected-case-id :none)
@@ -205,10 +244,10 @@
             (when number (gstring/format "%d. " number))
             (mutation-view (:mutation best-case))]]
           [:.col-xs-5.stats
-           [:span.label.label-warning
-            "Train " (format-error (:train-error best-case))]
            [:span.label.label-danger
             "Test " (format-error (:test-error best-case))]
+           [:span.label.label-warning
+            "Train " (format-error (:train-error best-case))]
            [:span.label.label-default (format-time ms-took)]]]
          [:.row {:class (when-not visible? "hidden")}
           [:.col-xs-5
@@ -253,26 +292,23 @@
     (html
       [:.panel.panel-success
        [:.panel-heading "Stats"]
-       [:.panel-body
-        (when (and running? progress)
+       (when (and running? progress)
+         [:.panel-body
           [:.row-fluid
            [:.col-sm-12
-            [:p "Current mutation: "[:b (mutation-view (:mutation progress))]]
-            (om/build progress-bar {:value (:value progress)})]])]])))
+            [:p "Current mutation: " [:b (mutation-view (:mutation progress))]]
+            (om/build progress-bar {:value (:value progress)})]]])])))
 
 (defcomponent app [{:keys [connection settings running? solvings] :as cursor} owner]
   (init-state [_]
     {:start-chan (chan)})
 
   (will-mount [_]
-    (go-loop []
-             (<! (om/get-state owner :start-chan))
-             (om/update! cursor :running? true)
-             (om/update! cursor :solvings [])
-             (let [{:keys [train-opts mutation-opts]} @settings]
-               (>! connection (commands/start train-opts mutation-opts)))
-             (recur))
-
+    (go
+      (loop []
+        (<! (om/get-state owner :start-chan))
+        (om/transact! cursor start)
+        (recur)))
     (go
       (loop [frame (<! connection)]
         (if-not (nil? frame)
@@ -280,24 +316,16 @@
             (.debug js/console (str "Received command:" (:command message)))
             (case (:command message)
               ::commands/init
-              (let [{opts :opts} message
-                    hidden-type (first (:hidden-choices opts))
-                    out-type (first (:out-choices opts))]
-                (om/transact! settings #(merge % opts))
-                (om/update! settings [:mutation-opts :hidden-type] hidden-type)
-                (om/update! settings [:mutation-opts :out-type] out-type))
+              (om/transact! cursor #(init % (:hidden-choices message) (:out-choices message)))
 
               ::commands/progress
-              (om/update! cursor :progress {:mutation (:mutation message)
-                                            :value (:value message)})
+              (om/transact! cursor #(update-progress % (:mutation message) (:value message)))
 
               ::commands/step
-              (om/transact! solvings #(conj % (:solving message)))
+              (om/transact! cursor #(new-solving % (:solving message)))
 
               ::commands/finished
-              (do
-                (om/update! cursor :failed-solving (:solving message))
-                (om/update! cursor :running? false)))
+              (om/transact! cursor #(finish % (:solving message))))
             (recur (<! connection)))))))
   (render-state [_ {:keys [start-chan]}]
     (html
@@ -311,15 +339,16 @@
         [:.col-md-12
          (om/build solvings-panel {:solvings solvings})]]
 
-       [:.row-fluid
-        [:.col-md-12
-         (om/build failed-solving-panel (:failed-solving cursor))]]
+       (when (:failed-solving cursor)
+         [:.row-fluid
+          [:.col-md-12
+           (om/build failed-solving-panel (:failed-solving cursor))]])
 
        [:.row-fluid
         [:.col-md-12
          (om/build stats-panel cursor)]]])))
 
-(defn- start []
+(defn- launch []
   (.debug js/console "Starting app")
   (go (let [ws-chan (ws-ch "ws://localhost:8000/ws" {:format :transit-json})
             {connection :ws-channel error :error} (<! ws-chan)]
@@ -339,6 +368,6 @@
     (close! conn)))
 
 (enable-console-print!)
-(start)
+(launch)
 (fw/start {:websocket-url "ws://localhost:3449/figwheel-ws"
-           :on-jsload #(do (shutdown) (start))})
+           :on-jsload #(do (shutdown) (launch))})
