@@ -19,7 +19,7 @@
          :running?   false
          :progress   nil
          :settings   {:train-opts    (TrainOpts. 0.3 0.9 5E-4 1000)
-                      :mutation-opts (MutationOpts. nil nil 5 true true)
+                      :mutation-opts (MutationOpts. nil nil true true)
                       :hidden-choices []
                       :out-choices []}
          :solvings   []}))
@@ -69,7 +69,7 @@
                           :style {:width (str percents "%")}}
           (gstring/format "%d%% complete" percents)]]))))
 
-(defcomponent settings-panel [{:keys [start-chan running? settings]} owner]
+(defcomponent settings-panel [{:keys [start-chan running? settings]}]
   (render [_]
     (let [[label-width field-width] [4 8]
           label-class (str "col-sm-" label-width)
@@ -128,19 +128,12 @@
                (for [choice (:out-choices settings)]
                  [:option {:value choice} (name choice)])]]]
 
-            [:.form-group
-             [:label.control-label {:class label-class} "Repeat times"]
-             [:div {:class input-class}
-              (input settings [:mutation-opts :repeat-times] js/parseInt)]]
-
-            (checkbox settings [:mutation-opts :remove-edges?]
-                      "Remove edges?")
-            (checkbox settings [:mutation-opts :remove-nodes?]
-                      "Remove nodes?")]]]]]))))
+            (checkbox settings [:mutation-opts :remove-edges?] "Remove edges?")
+            (checkbox settings [:mutation-opts :remove-nodes?] "Remove nodes?")]]]]]))))
 
 (defmulti mutation-view :operation)
 
-(defmethod mutation-view :asols.mutations/identity [m]
+(defmethod mutation-view :asols.mutations/identity [_]
   [:span "nothing"])
 
 (defmethod mutation-view :asols.mutations/add-neuron [m]
@@ -168,66 +161,67 @@
 (defn format-error [error]
   (gstring/format "%.5f" error))
 
-(defn format-variance [variance]
-  (gstring/format "%.5f" variance))
-
 (defn format-time [ms-took]
   (condp > ms-took
     1E3 (str (int ms-took) " ms")
     1E6 (gstring/format "%.2f sec" (/ ms-took 1E3))))
 
-(defcomponent solving-case-block [{:keys [solving-case hover-chan best?]}]
+(defcomponent solving-case-block [{:keys [solving-case hover-chan case-id best?]}]
   (render [_]
-    (let [{:keys [mean-error variance]} solving-case]
+    (let [{:keys [error]} solving-case]
       (html
         [:tr
          {:class         (when best? "success")
-          :on-mouse-over #(go (>! hover-chan (:number @solving-case)))
+          :on-mouse-over #(go (>! hover-chan case-id))
           :on-mouse-out  #(go (>! hover-chan :none))}
          [:td (mutation-view (:mutation solving-case))]
-         [:td (format-error mean-error)]
-         [:td (format-variance variance)]]))))
+         [:td (format-error error)]]))))
 
 (defcomponent solving-block [{:keys [number solving]} owner]
   (init-state [_]
     {:visible? false
-     :selected-case-num :none
+     :selected-case-id :none
      :hover-chan (chan)})
 
   (will-mount [_]
     (let [hover-chan (om/get-state owner :hover-chan)]
-      (go-loop [selected-case-num (<! hover-chan)]
-        (om/set-state! owner :selected-case-num selected-case-num)
-        (recur (<! hover-chan)))))
+      (go
+        (loop [selected-case-num (<! hover-chan)]
+          (om/set-state! owner :selected-case-id selected-case-num)
+          (recur (<! hover-chan))))))
 
-  (render-state [_ {:keys [visible? selected-case-num hover-chan]}]
+  (render-state [_ {:keys [visible? selected-case-id hover-chan]}]
     (html
       (let [{:keys [cases best-case ms-took]} solving
-            preview-case (if (= selected-case-num :none)
+            preview-case (if (= selected-case-id :none)
                            best-case
-                           (first (filter #(= (:number %) selected-case-num) cases)))]
+                           (nth cases selected-case-id))]
         [:li.list-group-item.solving
-         [:.row
-          [:.col-sm-7
-           [:p {:on-click #(om/update-state! owner :visible? not)}
+         [:.row {:on-click #(om/update-state! owner :visible? not)}
+          [:.col-xs-7
+           [:span
             (gstring/format "%d. " number)
             (mutation-view (:mutation best-case))]]
-          [:.col-sm-5.stats
-           [:span.label.label-info (format-variance (:variance best-case))]
-           [:span.label.label-danger (format-error (:mean-error best-case))]
+          [:.col-xs-5.stats
+           [:span.label.label-danger (format-error (:error best-case))]
            [:span.label.label-default (format-time ms-took)]]]
          [:.row {:class (when-not visible? "hidden")}
-          [:.col-sm-5
+          [:.col-xs-5
            {:dangerouslySetInnerHTML {:__html (:graph preview-case)}}]
-          [:.col-sm-7
+          [:.col-xs-7
            [:table.table.table-condensed.table-hover
-            [:thead [:tr [:th "Operation"] [:th "Error"] [:th "Variance"]]]
+            [:thead [:tr [:th "Operation"] [:th "Error"]]]
             [:tbody
-             (for [{number :number :as case} cases]
-               (om/build solving-case-block
-                         {:solving-case case
-                          :hover-chan hover-chan
-                          :best? (= number (:number best-case))}))]]]]]))))
+             (om/build solving-case-block {:solving-case best-case
+                                           :hover-chan hover-chan
+                                           :case-id :none
+                                           :best? true})
+             (for [i (range (count cases))
+                   :let [case (nth cases i)]]
+               (om/build solving-case-block {:solving-case case
+                                             :hover-chan hover-chan
+                                             :case-id i
+                                             :best? false}))]]]]]))))
 
 (defcomponent solvings-panel [{:keys [solvings]}]
   (render [_]
@@ -266,29 +260,30 @@
                (>! connection (commands/start train-opts mutation-opts)))
              (recur))
 
-    (go-loop [frame (<! connection)]
-             (if-not (nil? frame)
-               (let [{message :message} frame]
-                 (.debug js/console (str "Received command:" (:command message)))
-                 (case (:command message)
-                   ::commands/init
-                   (let [{opts :opts} message
-                         hidden-type (first (:hidden-choices opts))
-                         out-type (first (:out-choices opts))]
-                     (om/transact! settings #(merge % opts))
-                     (om/update! settings [:mutation-opts :hidden-type] hidden-type)
-                     (om/update! settings [:mutation-opts :out-type] out-type))
+    (go
+      (loop [frame (<! connection)]
+        (if-not (nil? frame)
+          (let [{message :message} frame]
+            (.debug js/console (str "Received command:" (:command message)))
+            (case (:command message)
+              ::commands/init
+              (let [{opts :opts} message
+                    hidden-type (first (:hidden-choices opts))
+                    out-type (first (:out-choices opts))]
+                (om/transact! settings #(merge % opts))
+                (om/update! settings [:mutation-opts :hidden-type] hidden-type)
+                (om/update! settings [:mutation-opts :out-type] out-type))
 
-                   ::commands/progress
-                   (om/update! cursor :progress {:mutation (:mutation message)
-                                                 :value (:value message)})
+              ::commands/progress
+              (om/update! cursor :progress {:mutation (:mutation message)
+                                            :value (:value message)})
 
-                   ::commands/step
-                   (om/transact! solvings #(conj % (:solving message)))
+              ::commands/step
+              (om/transact! solvings #(conj % (:solving message)))
 
-                   ::commands/finished
-                   (om/update! cursor :running? false))
-                 (recur (<! connection))))))
+              ::commands/finished
+              (om/update! cursor :running? false))
+            (recur (<! connection)))))))
   (render-state [_ {:keys [start-chan]}]
     (html
       [:.container.app

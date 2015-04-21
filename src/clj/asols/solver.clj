@@ -8,54 +8,66 @@
             [asols.graphics :as graphics]
             [asols.data :as data]))
 
-(defn- create-start-net
-  [inputs-count outputs-count mutation-opts]
-  (let [hidden-type (:hidden-type mutation-opts)
-        out-type (:out-type mutation-opts)
-        [net h1] (-> (network/network inputs-count outputs-count out-type)
-                     (network/add-layer hidden-type)
-                     (network/add-node 1))
-        in-nodes (:nodes (first (:layers net)))
-        out-nodes (:nodes (last (:layers net)))]
-    (-> net
-        (network/add-edge (first in-nodes) h1)
-        (network/add-edge h1 (first out-nodes)))))
+(defmacro time-it
+  [expr]
+  `(let [start# (System/nanoTime)
+         ret# ~expr
+         elapsed# (/ (double (- (System/nanoTime) start#)) 1000000.0)]
+     [ret# elapsed#]))
 
-(defn- calc-mean-error
-  [net dataset mutation-opts train-opts]
-  (let [net-errors (for [_ (range (:repeat-times mutation-opts))]
-                     (-> (network/reset-weights net)
-                         (trainer/train dataset train-opts)
-                         (trainer/calc-error dataset)))]
-    [(mean net-errors)
-     (variance net-errors)]))
+(defprotocol SolverProtocol
+  (create-start-net [this])
+  (get-mutations [this net])
+  (calc-error [this net])
+  (solve-mutation [this mutation])
+  (solve-net [this net progress-chan]))
 
-(defn- get-mutations
-  "Returns collection of all available mutations for given network"
-  [net {:keys [remove-edges? remove-nodes?]}]
-  (concat
-    (mutations/identity-mutations net)
-    (mutations/add-edges-mutations net)
-    (mutations/add-neurons-mutations net)
-    (when remove-nodes? (mutations/remove-neurons-mutations net))
-    (when remove-edges? (mutations/remove-edges-mutations net))
-    (mutations/add-layers-mutations net)))
+(defrecord Solver [dataset train-opts mutation-opts]
+  SolverProtocol
+  (create-start-net [_]
+    (let [[inputs-count outputs-count] (map count (first dataset))
+          hidden-type (:hidden-type mutation-opts)
+          out-type (:out-type mutation-opts)
+          [net h1] (-> (network/network inputs-count outputs-count out-type)
+                       (network/add-layer hidden-type)
+                       (network/add-node 1))
+          in-nodes (:nodes (first (:layers net)))
+          out-nodes (:nodes (last (:layers net)))]
+      (-> net
+          (network/add-edge (first in-nodes) h1)
+          (network/add-edge h1 (first out-nodes))
+          (trainer/train dataset train-opts))))
 
-(defn- solve-net
-  [net error-fn mutation-opts progress-chan]
-  (let [started (System/nanoTime)
-        mutations (get-mutations net mutation-opts)
-        cases (vec (for [number (range (count mutations))
-                         :let [{new-net :network :as m} (nth mutations number)
-                               [mean-error variance] (error-fn new-net)
-                               graph (graphics/render-network new-net)
-                               progress (/ (inc number) (count mutations))]]
-                     (do
-                       (go (>! progress-chan {:mutation m :value progress}))
-                       (commands/->SolvingCase number m mean-error variance graph))))
-        ms-took (/ (double (- (System/nanoTime) started)) 1E6)
-        best-case (first (sort-by :mean-error cases))]
-    (commands/->Solving cases best-case ms-took)))
+  (get-mutations [_ net]
+    (let [{:keys [remove-nodes? remove-edges?]} mutation-opts]
+      (concat
+        (mutations/identity-mutations net)
+        (mutations/add-edges-mutations net)
+        (mutations/add-neurons-mutations net)
+        (when remove-nodes? (mutations/remove-neurons-mutations net))
+        (when remove-edges? (mutations/remove-edges-mutations net))
+        (mutations/add-layers-mutations net))))
+
+  (calc-error [_ net]
+    (trainer/calc-error net dataset))
+
+  (solve-mutation [this {net :network :as mutation}]
+    (let [graph (graphics/render-network net)
+          trained-net (trainer/train net dataset train-opts)
+          error (calc-error this trained-net)
+          new-mutation (assoc mutation :network trained-net)]
+      (commands/->SolvingCase new-mutation error graph)))
+
+  (solve-net [this net progress-chan]
+    (let [mutations (get-mutations this net)
+          cases (for [i (range (count mutations))]
+                  (let [m (nth mutations i)
+                        case (solve-mutation this m)
+                        progress (/ (inc i) (count mutations))
+                        _ (go (>! progress-chan {:mutation m :value progress}))]
+                    case))
+          [[[best-case] cases] ms-took] (time-it (split-at 1 (sort-by :error cases)))]
+      (commands/->Solving best-case cases ms-took))))
 
 (defn init [in-chan out-chan]
   (go (>! out-chan (commands/init (trainer/hidden-types) (trainer/out-types))))
@@ -66,25 +78,24 @@
         ::commands/start
         (let [{:keys [train-opts mutation-opts]} command
               dataset data/xor
+              solver (->Solver dataset train-opts mutation-opts)
               progress-chan (chan)
-              start-net (create-start-net 2 2 mutation-opts)
-              error-fn #(calc-mean-error % dataset mutation-opts train-opts)
-              solve-fn #(solve-net % error-fn mutation-opts progress-chan)]
-          (go-loop [{:keys [value mutation]} (<! progress-chan)]
+              start-net (create-start-net solver)
+              start-error (calc-error solver start-net)]
+          (go-loop [{:keys [mutation value]} (<! progress-chan)]
             (when-not (nil? value)
               (>! out-chan (commands/progress mutation value))
               (recur (<! progress-chan))))
-          (loop [net start-net
-                 [current-error _] (error-fn start-net)]
-            (let [solving (solve-fn net)
-                  {:keys [mean-error variance mutation]} (:best-case solving)
-                  better? (< mean-error current-error)
-                  enough? (< mean-error 1E-4)]
-              (if (and better? (not enough?))
+          (loop [current-net start-net
+                 current-error start-error]
+            (let [solving (solve-net solver current-net progress-chan)
+                  {:keys [error mutation]} (:best-case solving)]
+              (if (and (< error current-error)
+                       (> error 1E-4))
                 (do
                   (>! out-chan (commands/step solving))
                   (prn "Sent step")
-                  (recur (:network mutation) [mean-error variance]))
+                  (recur (:network mutation) error))
                 (do
                   (prn "Finished")
                   (>! out-chan (commands/finished solving)))))))

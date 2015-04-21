@@ -156,13 +156,13 @@
   "Trains given network on dataset with given opts, returns new net"
   [net dataset train-opts]
   {:pre [(instance? TrainOpts train-opts)]}
-  (loop [net net
+  (loop [current-net net
          dataset-left (apply concat (repeat (:iter-count train-opts) dataset))
          delta-weights nil]
     (if (empty? dataset-left)
-      net
+      current-net
       (let [data-vector (first dataset-left)
-            [new-net new-delta-weights] (backprop-step net data-vector train-opts delta-weights)]
+            [new-net new-delta-weights] (backprop-step current-net data-vector train-opts delta-weights)]
        (recur new-net
               (rest dataset-left)
               new-delta-weights)))))

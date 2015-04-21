@@ -6,11 +6,11 @@
 
 (defrecord TrainOpts [learning-rate momentum weight-decay iter-count])
 
-(defrecord MutationOpts [hidden-type out-type repeat-times remove-edges? remove-nodes?])
+(defrecord MutationOpts [hidden-type out-type remove-edges? remove-nodes?])
 
-(defrecord SolvingCase [number mutation mean-error variance graph])
+(defrecord SolvingCase [mutation error graph])
 
-(defrecord Solving [cases best-case ms-took])
+(defrecord Solving [best-case cases ms-took])
 
 #+clj
 (defmulti deserialize :command)
