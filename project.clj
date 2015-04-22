@@ -20,7 +20,8 @@
                  [net.mikera/vectorz-clj "0.29.0"]
                  [net.mikera/core.matrix.stats "0.5.0"]]
 
-  :bower-dependencies [[flat-ui "2.2.2"]]
+  :bower-dependencies [[flat-ui "2.2.2"]
+                       [highcharts "v4.1.5"]]
   :bower {:directory "resources/public/vendor"}
 
   :main ^:skip-aot asols.core
