@@ -131,9 +131,9 @@
 
 (defn- backprop-delta-weights
   "Performs forward & backward pass, returns map of delta weights of edges"
-  [net entry train-opts prev-delta-weights]
+  [net entry e-count train-opts prev-delta-weights]
   (let [{:keys [input-vec target-vec]} entry
-        {:keys [learning-rate momentum weight-decay]} train-opts
+        {:keys [learning-rate momentum l2-lambda]} train-opts
         forward-values (forward-pass net input-vec)
         deltas-map (backward net target-vec forward-values)]
     (into {} (for [[[node-from node-to :as e] weight] (:edges net)]
@@ -141,32 +141,40 @@
                                         (deltas-map node-to)
                                         (forward-values node-from))
                                      (* momentum (get prev-delta-weights e 0))
-                                     (* weight-decay weight))]
+                                     (* -1 l2-lambda learning-rate weight (/ e-count)))]
                  [e delta-weight])))))
 
 (defn backprop-step
   "Performs forward & backward pass and tunes network weights.
   Returns new network and weights deltas being made."
-  [net entry train-opts prev-delta-weights]
-  (let [delta-weights (backprop-delta-weights net entry train-opts prev-delta-weights)
+  [net entry entries-count train-opts prev-delta-weights]
+  (let [delta-weights (backprop-delta-weights net entry entries-count train-opts prev-delta-weights)
         new-net (update-in net [:edges] #(merge-with + % delta-weights))]
     [new-net delta-weights]))
 
+(defn- train-entries
+  [start-net entries t-opts]
+  (let [e-count (count entries)]
+    (loop [net start-net
+           entries-left entries
+           delta-w nil]
+     (if (empty? entries-left)
+       net
+       (let [entry (first entries-left)
+             [new-net new-delta-w] (backprop-step net entry e-count t-opts delta-w)]
+         (recur new-net (rest entries-left) new-delta-w))))))
+
 (defn train
   "Trains given network on dataset with given opts, returns new net"
-  [net dataset train-opts]
+  [start-net dataset t-opts]
   {:pre [(instance? Dataset dataset)
-         (instance? TrainOpts train-opts)]}
-  (let [test-entries (:train dataset)
-        full-entries (apply concat (repeat (:iter-count train-opts) test-entries))]
-    (loop [current-net net
-           entries-left full-entries
-           delta-weights nil]
-      (if (empty? entries-left)
-        current-net
-        (let [entry (first entries-left)
-              [new-net new-delta-weights] (backprop-step current-net entry train-opts delta-weights)]
-          (recur new-net (rest entries-left) new-delta-weights))))))
+         (instance? TrainOpts t-opts)]}
+  (let [entries (:train dataset)
+        iter-count (:iter-count t-opts)]
+    (loop [net start-net i 0]
+      (if (< i iter-count)
+        (recur (train-entries net entries t-opts) (inc i))
+        net))))
 
 (defn activate
   "Returns output vector of after passing given input vector on net's inputs"

@@ -4,7 +4,7 @@
 (def ^:private commands
   #{::init ::start ::abort ::progress ::step ::finished})
 
-(defrecord TrainOpts [learning-rate momentum weight-decay iter-count])
+(defrecord TrainOpts [learning-rate momentum l2-lambda iter-count])
 
 (defrecord MutationOpts [hidden-type out-type remove-edges? remove-nodes? add-layers?])
 

@@ -6,9 +6,12 @@
 
 (defn parse-float
   [string]
-  (if (= string "0.")
-    string
-    (js/parseFloat string)))
+  (if (= "." (last string))
+    string)
+  (let [cleaned (js/parseFloat string)]
+    (if (js/isNaN cleaned)
+      string
+      cleaned)))
 
 (defn log [msg]
   (.log js/console msg))

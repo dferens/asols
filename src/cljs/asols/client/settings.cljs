@@ -29,9 +29,9 @@
               [:div {:class input-class}
                (widgets/input settings [:train-opts :momentum] parse-float)]]
              [:.form-group
-              [:label.control-label {:class label-class} "Weight decay"]
+              [:label.control-label {:class label-class} "L2 lambda"]
               [:div {:class input-class}
-               (widgets/input settings [:train-opts :weight-decay] parse-float)]]
+               (widgets/input settings [:train-opts :l2-lambda] parse-float)]]
              [:.form-group
               [:label.control-label {:class label-class} "Iterations"]
               [:div {:class input-class}
