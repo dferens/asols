@@ -76,16 +76,16 @@
                            (nth cases selected-case-id))]
         [:li.list-group-item.solving
          [:.row {:on-click #(om/update-state! owner :visible? not)}
-          [:.col-xs-7
+          [:.col-xs-12
            [:span
             (when number (gstring/format "%d. " number))
-            (mutation-view (:mutation best-case))]]
-          [:.col-xs-5.stats
-           [:span.label.label-danger
+            (mutation-view (:mutation best-case))]
+           [:span.label.label-danger.pull-right
             "Test " (format-error (:test-error best-case))]
-           [:span.label.label-warning
+           [:span.label.label-warning.pull-right
             "Train " (format-error (:train-error best-case))]
-           [:span.label.label-default (format-time ms-took)]]]
+           [:span.label.label-default.pull-right
+            (format-time ms-took)]]]
          [:.row {:class (when-not visible? "hidden")}
           [:.col-xs-5
            {:dangerouslySetInnerHTML {:__html (:graph preview-case)}}]
