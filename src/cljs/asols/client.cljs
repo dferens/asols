@@ -50,15 +50,23 @@
              :progress nil))
 
 (defn update-progress [app mutation progress-value]
-  (assoc app  :progress {:mutation mutation
-                         :value progress-value}))
+  (if (:running? app)
+    (assoc app :progress {:mutation mutation :value progress-value})
+    app))
 
 (defn new-solving [app solving]
-  (update-in app [:solvings] conj solving))
+  (if (:running? app)
+    (update-in app [:solvings] conj solving)
+    app))
 
 (defn finish [app failed-solving]
-  (assoc app :failed-solving failed-solving
-             :running? false))
+  (if (:running? app)
+    (assoc app :failed-solving failed-solving :running? false)
+    app))
+
+(defn abort [app]
+  (go (>! (:connection app) (commands/abort)))
+  (assoc app :running? false))
 
 ;; Widgets
 
@@ -107,7 +115,7 @@
                           :style {:width (str percents "%")}}
           (gstring/format "%d%% complete" percents)]]))))
 
-(defcomponent settings-panel [{:keys [start-chan running? settings]}]
+(defcomponent settings-panel [{:keys [start-chan abort-chan running? settings]}]
   (render [_]
     (let [[label-width field-width] [4 8]
           label-class (str "col-sm-" label-width)
@@ -137,11 +145,13 @@
               (input settings [:train-opts :iter-count] js/parseInt)]]
             [:.form-group
              [:div {:class (str input-class " col-sm-offset-" label-width)}
-              [:button.btn.btn-primary.btn-block
-               {:type     "button"
-                :disabled (when running? "disabled")
-                :on-click #(go (>! start-chan {}))}
-               "Start"]]]]]
+              (if running?
+                [:button.btn.btn-block.btn-danger
+                 {:type "button" :on-click #(go (>! abort-chan true))}
+                 "Abort"]
+                [:button.btn.btn-block.btn-primary
+                 {:type "button" :on-click #(go (>! start-chan true))}
+                 "Start"])]]]]
           [:.col-sm-6
            [:form.form-horizontal
             [:.form-group
@@ -301,14 +311,17 @@
 
 (defcomponent app [{:keys [connection settings running? solvings] :as cursor} owner]
   (init-state [_]
-    {:start-chan (chan)})
+    {:start-chan (chan)
+     :abort-chan (chan)})
 
   (will-mount [_]
-    (go
-      (loop []
-        (<! (om/get-state owner :start-chan))
-        (om/transact! cursor start)
-        (recur)))
+    (let [{:keys [start-chan abort-chan]} (om/get-state owner)]
+      (go-loop [_ (<! start-chan)]
+               (om/transact! cursor start)
+               (recur (<! start-chan)))
+      (go-loop [_ (<! abort-chan)]
+               (om/transact! cursor abort)
+               (recur (<! abort-chan))))
     (go
       (loop [frame (<! connection)]
         (if-not (nil? frame)
@@ -327,14 +340,16 @@
               ::commands/finished
               (om/transact! cursor #(finish % (:solving message))))
             (recur (<! connection)))))))
-  (render-state [_ {:keys [start-chan]}]
+  (render-state [_ {:keys [abort-chan start-chan]}]
     (html
       [:.container.app
        [:.row-fluid
         [:.col-md-12
-         (om/build settings-panel {:start-chan start-chan
-                                   :running? running?
-                                   :settings settings})]]
+         (om/build settings-panel
+           {:start-chan start-chan
+            :abort-chan abort-chan
+            :running? running?
+            :settings settings})]]
        [:.row-fluid
         [:.col-md-12
          (om/build solvings-panel {:solvings solvings})]]

@@ -2,7 +2,7 @@
 
 
 (def ^:private commands
-  #{::init ::start ::progress ::step ::finished})
+  #{::init ::start ::abort ::progress ::step ::finished})
 
 (defrecord TrainOpts [learning-rate momentum weight-decay iter-count])
 
@@ -52,6 +52,10 @@
   {:command       ::start
    :train-opts    (into {} train-opts)
    :mutation-opts (into {} mutation-opts)})
+
+#+cljs
+(defn abort []
+  {:command ::abort})
 
 #+clj
 (defmethod deserialize ::start
