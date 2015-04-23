@@ -105,7 +105,7 @@
                    (recur (<! (:connection @cursor))))))))
   (render-state [_ {:keys [abort-chan start-chan]}]
     (html
-      [:.container.app
+      [:.container-fluid.app
        [:.row-fluid
         [:.col-md-12
          (om/build settings-panel
