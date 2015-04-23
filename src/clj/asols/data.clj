@@ -9,7 +9,8 @@
 
 (defrecord Dataset [train test inputs-count outputs-count])
 
-(defn- entry
+(defn entry
+  "Creates dataset entry"
   [input-vec target-vec]
   (->Entry (array input-vec) (array target-vec)))
 

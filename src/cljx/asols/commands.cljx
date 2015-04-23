@@ -4,11 +4,14 @@
 (def ^:private commands
   #{::init ::start ::abort ::progress ::step ::finished})
 
+(def modes
+  #{::regression ::classification})
+
 (defrecord TrainOpts [learning-rate momentum l2-lambda iter-count])
 
-(defrecord MutationOpts [hidden-type out-type remove-edges? remove-nodes? add-layers?])
+(defrecord MutationOpts [mode hidden-type out-type remove-edges? remove-nodes? add-layers?])
 
-(defrecord SolvingCase [mutation train-error test-error graph])
+(defrecord SolvingCase [mode mutation train-value test-value graph])
 
 (defrecord Solving [best-case cases ms-took])
 

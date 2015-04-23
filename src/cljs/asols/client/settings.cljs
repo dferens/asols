@@ -4,7 +4,8 @@
             [cljs.core.async :refer [<! >! chan close!]]
             [sablono.core :refer-macros [html]]
             [asols.client.widgets :as widgets]
-            [asols.client.utils :refer [parse-float str->keyword]])
+            [asols.client.utils :refer [parse-float str->keyword]]
+            [asols.commands :as commands])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
 
@@ -71,4 +72,10 @@
 
              (widgets/checkbox settings [:mutation-opts :remove-edges?] "Remove edges?")
              (widgets/checkbox settings [:mutation-opts :remove-nodes?] "Remove nodes?")
-             (widgets/checkbox settings [:mutation-opts :add-layers?] "Add layers?")]]]]]))))
+             (widgets/checkbox settings [:mutation-opts :add-layers?] "Add layers?")
+             (om/build widgets/radio
+                       {:cursor settings
+                        :path [:mutation-opts :mode]
+                        :choices [["Classification" ::commands/classification]
+                                  ["Regression" ::commands/regression]]
+                        :clean-fn str->keyword})]]]]]))))

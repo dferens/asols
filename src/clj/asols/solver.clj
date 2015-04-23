@@ -40,22 +40,44 @@
       (when remove-edges? (mutations/remove-edges-mutations net))
       (when add-layers? (mutations/add-layers-mutations net)))))
 
-(defn- calc-train-error
-  [solver net]
-  (trainer/calc-error net (:train (:dataset solver))))
+(defmulti calc-net-value (fn [solver net entries] (:mode (:mutation-opts solver))))
+(defmethod calc-net-value ::commands/classification
+  [_ net entries]
+  (* 100 (trainer/calc-ca net entries)))
+(defmethod calc-net-value ::commands/regression
+  [_ net entries]
+  (trainer/calc-squares-error net entries))
 
-(defn- calc-test-error
-  [solver net]
-  (trainer/calc-error net (:test (:dataset solver))))
+(defmulti converged? (fn [solving-case prev-value] (:mode solving-case)))
+(defmethod converged? ::commands/classification
+  [solving-case prev-value]
+  (let [curr-value (:test-value solving-case)]
+    (or (< curr-value prev-value)
+        (= curr-value 100.0))))
+(defmethod converged? ::commands/regression
+  [solving-case prev-value]
+  (let [curr-value (:test-value solving-case)]
+    (or (> curr-value prev-value)
+        (< curr-value 1E-4))))
+
+(defmulti valid-cases (fn [solver cases] (:mode (:mutation-opts solver))))
+(defmethod valid-cases ::commands/regression
+  [_ cases]
+  (sort-by :test-value cases))
+(defmethod valid-cases ::commands/classification
+  [_ cases]
+  (reverse (sort-by :test-value cases)))
 
 (defn solve-mutation
   [solver {net :network :as mutation}]
-  (let [graph (graphics/render-network net)
-        trained-net (trainer/train net (:dataset solver) (:train-opts solver))
-        train-error (calc-train-error solver trained-net)
-        test-error (calc-test-error solver trained-net)
-        new-mutation (assoc mutation :network trained-net)]
-    (commands/->SolvingCase new-mutation train-error test-error graph)))
+  (let [mode (:mode (:mutation-opts solver))
+        dataset (:dataset solver)
+        graph (graphics/render-network net)
+        trained-net (trainer/train net dataset (:train-opts solver))
+        new-mutation (assoc mutation :network trained-net)
+        train-value (calc-net-value solver trained-net (:train dataset))
+        test-value (calc-net-value solver trained-net (:test dataset))]
+    (commands/->SolvingCase mode new-mutation train-value test-value graph)))
 
 (defn solve-net
   [solver net progress-chan abort-chan]
@@ -70,7 +92,7 @@
                 (do
                   (>!! progress-chan progress)
                   case))
-        [[[best-case] cases] ms-took] (time-it (split-at 1 (sort-by :test-error cases)))]
+        [[[best-case] cases] ms-took] (time-it (split-at 1 (valid-cases solver cases)))]
     (commands/->Solving best-case cases ms-took)))
 
 (defn solver-loop
@@ -82,19 +104,20 @@
         (when (>! out-chan (commands/progress mutation value))
           (recur (<! progress-chan)))))
     (loop [current-net (create-start-net solver)
-           current-error (calc-test-error solver current-net)]
+           current-value (calc-net-value solver current-net (:test (:dataset solver)))]
       (let [solving-chan (go (solve-net solver current-net progress-chan loop-abort-chan))
             [solving ch] (alts!! [abort-chan solving-chan])]
         (if (= ch abort-chan)
           (>!! loop-abort-chan true)
-          (let [{:keys [test-error mutation]} (:best-case solving)]
-            (if (and (< test-error current-error)
-                     (> test-error 1E-4))
+          (let [best-case (:best-case solving)]
+            (prn (:test-value best-case) current-value)
+            (if (converged? best-case current-value)
+              (when (>!! out-chan (commands/finished solving))
+                (prn "Finished"))
               (when (>!! out-chan (commands/step solving))
                 (prn "Sent step")
-                (recur (:network mutation) test-error))
-              (when (>!! out-chan (commands/finished solving))
-                (prn "Finished")))))))))
+                (recur (:network (:mutation best-case))
+                       (:test-value best-case))))))))))
 
 (defn init [in-chan out-chan]
   (let [abort-chan (chan)

@@ -1,5 +1,5 @@
 (ns asols.trainer
-  (:require [clojure.core.matrix :as matrix]
+  (:require [clojure.core.matrix :as m]
             [clojure.core.matrix.stats :refer [sum sum-of-squares]]
             [clojure.set :as set]
             [asols.network :as network]
@@ -37,12 +37,16 @@
         out-deltas-implementers (into #{} (keys (methods out-deltas)))]
     (set/intersection forward-implementers out-deltas-implementers)))
 
+;; Linear layer
+
+(defmethod forward ::linear [_ in-vec] in-vec)
+
 ;; Sigmoid hidden layer & output layer with euclidean loss
 
 (defmethod forward ::sigmoid
   [_ in-vec]
-  (matrix/div 1
-              (matrix/add 1 (matrix/emap #(Math/exp %) (matrix/sub in-vec)))))
+  (m/div 1
+    (m/add 1 (m/emap #(Math/exp %) (m/sub in-vec)))))
 
 (defmethod derivative ::sigmoid
   [_ out-x]
@@ -50,15 +54,15 @@
 
 (defmethod out-deltas ::sigmoid
   [_ out-vec target-vec]
-  (matrix/mul out-vec
-              (matrix/sub 1 out-vec)
-              (matrix/sub out-vec target-vec)))
+  (m/mul out-vec
+         (m/sub 1 out-vec)
+         (m/sub out-vec target-vec)))
 
 ;; ReLU hidden layer
 
 (defmethod forward ::relu
   [_ in-vector]
-  (matrix/emap (partial max 0) in-vector))
+  (m/emap (partial max 0) in-vector))
 
 (defmethod derivative ::relu
   [_ out-x]
@@ -69,13 +73,13 @@
 (defmethod forward ::softmax
   [_ in-vec]
   (let [safe-exp #(-> % (max -500) (min 500) (Math/exp))
-        exp-sums (matrix/emap safe-exp in-vec)
-        total (matrix/esum exp-sums)]
-    (matrix/div exp-sums total)))
+        exp-sums (m/emap safe-exp in-vec)
+        total (m/esum exp-sums)]
+    (m/div exp-sums total)))
 
 (defmethod out-deltas ::softmax
   [_ out-vector target-vector]
-  (matrix/sub out-vector target-vector))
+  (m/sub out-vector target-vector))
 
 
 ;; Backprop implementation
@@ -88,7 +92,7 @@
                  (sum (for [[node-from _ :as edge] in-edges]
                         (* (values node-from)
                            (network/get-weight net edge)))))
-        out-vec (forward layer (matrix/array in-vec))]
+        out-vec (forward layer (m/array in-vec))]
     (into values (map vector (:nodes layer) out-vec))))
 
 (defn forward-pass
@@ -103,8 +107,8 @@
 (defn- backward-out-layer
   "Performs backward pass for output layer, returns map of nodes deltas"
   [layer forward-values target-vec]
-  (let [out-vec-seq (map #(forward-values %) (:nodes layer))
-        out-vec (matrix/array out-vec-seq)
+  (let [out-vec-seq (map forward-values (:nodes layer))
+        out-vec (m/array out-vec-seq)
         deltas-vector (out-deltas layer out-vec target-vec)]
     (zipmap (:nodes layer) deltas-vector)))
 
@@ -181,31 +185,52 @@
   [net input-vector]
   (let [nodes-values (forward-pass net input-vector)
         out-vector-seq (map nodes-values (:nodes (last (:layers net))))]
-    (matrix/array out-vector-seq)))
+    (m/array out-vector-seq)))
 
-(defn calc-error-on-entry
-  "Calculates error on given dataset entry for given network"
-  [net training-record]
-  {:pre [(instance? Entry training-record)]}
-  (let [{:keys [input-vec target-vec]} training-record
+(defn- calc-distance-error-entry
+  "Calculates error on single dataset entry for given network"
+  [net entry]
+  {:pre [(instance? Entry entry)]}
+  (let [{:keys [input-vec target-vec]} entry
         predicted-output (activate net input-vec)
-        errors (into [] (matrix/sub target-vec predicted-output))]
-    (/ (sum-of-squares errors)
-       2)))
+        errors (m/sub target-vec predicted-output)]
+    (m/div (sum-of-squares errors)
+           2)))
+
+(defn- find-max
+  "Returns index of max array element"
+  [arr]
+  (let [len (m/ecount arr)]
+    (loop [curr-max-i 0
+           elem-i 0]
+      (if (< elem-i len)
+        (recur (if (> (m/mget arr curr-max-i)
+                      (m/mget arr elem-i))
+                 curr-max-i
+                 elem-i)
+               (inc elem-i))
+        curr-max-i))))
+
+(defn- calc-ca-entry
+  [net {:keys [input-vec target-vec]}]
+  (let [out-vec (activate net input-vec)
+        predicted-class (find-max out-vec)
+        correct? (= 1.0 (m/mget target-vec predicted-class))]
+    (if correct? 1.0 0.0)))
+
+(defn calc-squares-error
+  "Calculates sum of squares error on given dataset entries"
+  [net entries]
+  (m/mget
+    (sum
+      (for [entry entries]
+        (calc-distance-error-entry net entry)))))
 
 (defn calc-ca
   "Calculates classification accuracy on given collection of dataset entries"
   [net entries]
-  (let [correct-entries (for [{:keys [input-vec target-vec] :as entry} entries
-                              :let [out-vec (activate net input-vec)
-                                    max-out (matrix/emax out-vec)
-                                    predicted-class-i (.indexOf (into [] out-vec) max-out)]
-                              :when (= 1.0 (matrix/mget target-vec predicted-class-i))]
-                          entry)]
-    (/ (count correct-entries)
-       (count entries))))
+  {:pre [(not (empty? entries))]}
+  (/ (m/esum (m/array (for [e entries]
+                        (calc-ca-entry net e))))
+     (count entries)))
 
-(defn calc-error
-  "Calculates error on given dataset entries for given network"
-  [net entries]
-  (sum (map #(calc-error-on-entry net %) entries)))

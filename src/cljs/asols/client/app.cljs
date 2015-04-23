@@ -16,12 +16,18 @@
 
 ;; App state management
 
+(defn mutation-opts []
+  (->MutationOpts
+    ::commands/classification
+    nil nil
+    true true false))
+
 (defonce app-state
   (atom {:connection nil
          :running? false
          :progress nil
          :settings {:train-opts (->TrainOpts 0.3 0.9 5E-4 1000)
-                    :mutation-opts (->MutationOpts nil nil true true true)
+                    :mutation-opts (mutation-opts)
                     :hidden-choices []
                     :out-choices []}
          :solvings []
@@ -118,7 +124,9 @@
 
        [:.row-fluid
         [:.col-md-12
-         (om/build stats-panel {:progress progress :solvings solvings})]]])))
+         (om/build stats-panel {:progress progress
+                                :solvings solvings
+                                :settings settings})]]])))
 
 (defn- launch []
   (debug "Starting app...")

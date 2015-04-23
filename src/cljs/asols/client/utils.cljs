@@ -1,4 +1,6 @@
-(ns asols.client.utils)
+(ns asols.client.utils
+  (:require [goog.string :as gstring]
+            [goog.string.format]))
 
 (defn str->keyword
   [value]
@@ -21,3 +23,6 @@
 
 (defn error [msg]
   (.error js/console msg))
+
+(defn format [template & args]
+  (apply gstring/format template args))
