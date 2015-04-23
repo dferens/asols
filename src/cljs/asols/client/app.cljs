@@ -118,7 +118,7 @@
 
        [:.row-fluid
         [:.col-md-12
-         (om/build stats-panel {:progress progress})]]])))
+         (om/build stats-panel {:progress progress :solvings solvings})]]])))
 
 (defn- launch []
   (debug "Starting app...")
