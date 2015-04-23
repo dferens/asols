@@ -95,7 +95,7 @@
         out-vec (forward layer (m/array in-vec))]
     (into values (map vector (:nodes layer) out-vec))))
 
-(defn forward-pass
+(defn- forward-pass
   "Performs forward pass, returns map of nodes outputs"
   [net input-vec]
   (let [input-layer (first (:layers net))
@@ -124,7 +124,7 @@
                                               (network/get-weight net e)))))]
                        [node delta]))))
 
-(defn backward
+(defn- backward
   "Performs backward pass, returns map of nodes deltas"
   [net target-vec forward-values]
   (let [out-layer (last (:layers net))
@@ -148,7 +148,7 @@
                                      (* -1 l2-lambda learning-rate weight (/ e-count)))]
                  [e delta-weight])))))
 
-(defn backprop-step
+(defn- backprop-step
   "Performs forward & backward pass and tunes network weights.
   Returns new network and weights deltas being made."
   [net entry entries-count train-opts prev-delta-weights]

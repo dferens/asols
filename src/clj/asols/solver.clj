@@ -17,17 +17,18 @@
 
 (defprotocol SolverProtocol
   (calc-net-value [this net entries])
-  (converged? [this solving prev-net-value])
+  (test-solving [this solving prev-net-value])
   (sort-cases [this cases]))
 
 (defrecord ClassificationSolver [dataset train-opts mutation-opts]
   SolverProtocol
   (calc-net-value [_ net entries]
     (* 100 (trainer/calc-ca net entries)))
-  (converged? [_ solving prev-net-value]
-    (let [curr-value (:test-value (:best-case solving))]
-      (or (< curr-value prev-net-value)
-          (= curr-value 100.0))))
+  (test-solving [_ solving prev-net-value]
+    (let [curr-value (:test-value (:best-case solving))
+          better? (> curr-value prev-net-value)
+          best? (= curr-value 100.0)]
+      [better? best?]))
   (sort-cases [_ cases]
     (reverse (sort-by :test-value cases))))
 
@@ -35,10 +36,11 @@
   SolverProtocol
   (calc-net-value [_ net entries]
     (trainer/calc-squares-error net entries))
-  (converged? [_ solving prev-net-value]
-    (let [curr-value (:test-value (:best-case solving))]
-      (or (> curr-value prev-net-value)
-          (< curr-value 1E-4))))
+  (test-solving [_ solving prev-net-value]
+    (let [curr-value (:test-value (:best-case solving))
+          better? (< curr-value prev-net-value)
+          best? (< curr-value 1E-4)]
+      [better? best?]))
   (sort-cases [_ cases]
     (sort-by :test-value cases)))
 
@@ -114,13 +116,18 @@
             [solving ch] (alts!! [abort-chan solving-chan])]
         (if (= ch abort-chan)
           (>!! loop-abort-chan true)
-          (if (converged? solver solving current-value)
-            (when (>!! out-chan (commands/finished solving))
-              (prn "Finished"))
-            (when (>!! out-chan (commands/step solving))
-              (prn "Sent step")
-              (recur (:network (:mutation (:best-case solving)))
-                     (:test-value (:best-case solving))))))))))
+          (let [[better? best?] (test-solving solver solving current-value)]
+            (if better?
+              (do
+                (>!! out-chan (commands/step solving))
+                (prn "Sent step")
+                (if best?
+                  (when (>!! out-chan (commands/finished))
+                    (prn "Finished, found best solution"))
+                  (recur (:network (:mutation (:best-case solving)))
+                         (:test-value (:best-case solving)))))
+              (when (>!! out-chan (commands/finished solving))
+                (prn "Finished, could not find better solution")))))))))
 
 (defn init [in-chan out-chan]
   (let [abort-chan (chan)

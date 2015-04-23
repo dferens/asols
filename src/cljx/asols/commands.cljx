@@ -45,10 +45,14 @@
   {:command ::step :solving solving})
 
 #+clj
-(defn finished [failed-solving]
-  {:pre [(instance? Solving failed-solving)]}
-  {:command ::finished
-   :solving failed-solving})
+(defn finished
+  ([]
+    {:command ::finished
+     :solving nil})
+  ([failed-solving]
+   {:pre [(instance? Solving failed-solving)]}
+   {:command ::finished
+    :solving failed-solving}))
 
 #+cljs
 (defn start

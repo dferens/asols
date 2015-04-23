@@ -27,7 +27,7 @@
   (atom {:connection nil
          :running? false
          :progress nil
-         :settings {:train-opts (->TrainOpts 0.3 0.9 5E-4 1000)
+         :settings {:train-opts (->TrainOpts 0.3 0.5 5E-8 100)
                     :mutation-opts (mutation-opts)
                     :hidden-choices []
                     :out-choices []}
