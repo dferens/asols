@@ -15,7 +15,38 @@
          elapsed# (/ (double (- (System/nanoTime) start#)) 1000000.0)]
      [ret# elapsed#]))
 
-(defrecord Solver [dataset train-opts mutation-opts])
+(defprotocol SolverProtocol
+  (calc-net-value [this net entries])
+  (converged? [this solving prev-net-value])
+  (sort-cases [this cases]))
+
+(defrecord ClassificationSolver [dataset train-opts mutation-opts]
+  SolverProtocol
+  (calc-net-value [_ net entries]
+    (* 100 (trainer/calc-ca net entries)))
+  (converged? [_ solving prev-net-value]
+    (let [curr-value (:test-value (:best-case solving))]
+      (or (< curr-value prev-net-value)
+          (= curr-value 100.0))))
+  (sort-cases [_ cases]
+    (reverse (sort-by :test-value cases))))
+
+(defrecord RegressionSolver [dataset train-opts mutation-opts]
+  SolverProtocol
+  (calc-net-value [_ net entries]
+    (trainer/calc-squares-error net entries))
+  (converged? [_ solving prev-net-value]
+    (let [curr-value (:test-value (:best-case solving))]
+      (or (> curr-value prev-net-value)
+          (< curr-value 1E-4))))
+  (sort-cases [_ cases]
+    (sort-by :test-value cases)))
+
+(defn- create-solver
+  [dataset t-opts m-opts]
+  (case (:mode m-opts)
+    ::commands/regression (->RegressionSolver dataset t-opts m-opts)
+    ::commands/classification (->ClassificationSolver dataset t-opts m-opts)))
 
 (defn create-start-net
   [{:keys [dataset train-opts mutation-opts]}]
@@ -42,34 +73,6 @@
       (when remove-edges? (mutations/remove-edges-mutations net))
       (when add-layers? (mutations/add-layers-mutations net)))))
 
-(defmulti calc-net-value (fn [solver net entries] (:mode (:mutation-opts solver))))
-(defmethod calc-net-value ::commands/classification
-  [_ net entries]
-  (* 100 (trainer/calc-ca net entries)))
-(defmethod calc-net-value ::commands/regression
-  [_ net entries]
-  (trainer/calc-squares-error net entries))
-
-(defmulti converged? (fn [solving-case prev-value] (:mode solving-case)))
-(defmethod converged? ::commands/classification
-  [solving-case prev-value]
-  (let [curr-value (:test-value solving-case)]
-    (or (< curr-value prev-value)
-        (= curr-value 100.0))))
-(defmethod converged? ::commands/regression
-  [solving-case prev-value]
-  (let [curr-value (:test-value solving-case)]
-    (or (> curr-value prev-value)
-        (< curr-value 1E-4))))
-
-(defmulti valid-cases (fn [solver cases] (:mode (:mutation-opts solver))))
-(defmethod valid-cases ::commands/regression
-  [_ cases]
-  (sort-by :test-value cases))
-(defmethod valid-cases ::commands/classification
-  [_ cases]
-  (reverse (sort-by :test-value cases)))
-
 (defn solve-mutation
   [solver {net :network :as mutation}]
   (let [mode (:mode (:mutation-opts solver))
@@ -94,7 +97,7 @@
                 (do
                   (>!! progress-chan progress)
                   case))
-        [[[best-case] cases] ms-took] (time-it (split-at 1 (valid-cases solver cases)))]
+        [[[best-case] cases] ms-took] (time-it (split-at 1 (sort-cases solver cases)))]
     (commands/->Solving best-case cases ms-took)))
 
 (defn solver-loop
@@ -111,15 +114,13 @@
             [solving ch] (alts!! [abort-chan solving-chan])]
         (if (= ch abort-chan)
           (>!! loop-abort-chan true)
-          (let [best-case (:best-case solving)]
-            (prn (:test-value best-case) current-value)
-            (if (converged? best-case current-value)
-              (when (>!! out-chan (commands/finished solving))
-                (prn "Finished"))
-              (when (>!! out-chan (commands/step solving))
-                (prn "Sent step")
-                (recur (:network (:mutation best-case))
-                       (:test-value best-case))))))))))
+          (if (converged? solver solving current-value)
+            (when (>!! out-chan (commands/finished solving))
+              (prn "Finished"))
+            (when (>!! out-chan (commands/step solving))
+              (prn "Sent step")
+              (recur (:network (:mutation (:best-case solving)))
+                     (:test-value (:best-case solving))))))))))
 
 (defn init [in-chan out-chan]
   (let [abort-chan (chan)
@@ -131,7 +132,7 @@
           (prn "Recieved command:" command)
           (case (:command command)
             ::commands/start (let [{:keys [train-opts mutation-opts]} command
-                                   solver (->Solver data/monks1 train-opts mutation-opts)]
+                                   solver (create-solver data/monks1 train-opts mutation-opts)]
                                (go (solver-loop solver out-chan abort-chan)))
             ::commands/abort (>!! abort-chan true)
             :default (prn "Unknown command:" command))

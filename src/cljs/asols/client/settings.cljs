@@ -4,7 +4,7 @@
             [cljs.core.async :refer [<! >! chan close!]]
             [sablono.core :refer-macros [html]]
             [asols.client.widgets :as widgets]
-            [asols.client.utils :refer [parse-float str->keyword]]
+            [asols.client.utils :refer [parse-int parse-float str->keyword]]
             [asols.commands :as commands])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
@@ -33,7 +33,7 @@
            [:.form-group
             [:label.control-label.col-sm-4 "Iterations"]
             [:.col-sm-8
-             (widgets/input settings [:train-opts :iter-count] js/parseInt)]]
+             (widgets/input settings [:train-opts :iter-count] parse-int)]]
            [:.form-group
             [:.col-sm-8.col-sm-offset-4
              (if running?
@@ -59,7 +59,7 @@
                 (for [choice (:hidden-choices settings)]
                   [:option {:value choice} (name choice)])]]]]
             [:.col-sm-4
-             (widgets/input settings [:mutation-opts :hidden-count] js/parseInt)]]
+             (widgets/input settings [:mutation-opts :hidden-count] parse-int)]]
 
            [:.form-group
             [:.col-sm-4

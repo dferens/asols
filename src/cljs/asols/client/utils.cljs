@@ -15,6 +15,13 @@
       string
       cleaned)))
 
+(defn parse-int
+  [string]
+  (let [cleaned (js/parseInt string)]
+    (if (js/isNaN cleaned)
+      string
+      cleaned)))
+
 (defn log [msg]
   (.log js/console msg))
 
