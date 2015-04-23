@@ -11,71 +11,81 @@
 
 (defcomponent settings-panel [{:keys [start-chan abort-chan running? settings]}]
   (render [_]
-    (let [[label-width field-width] [4 8]
-          label-class (str "col-sm-" label-width)
-          input-class (str "col-sm-" field-width)]
-      (html
-        [:.panel.panel-default.settings
-         [:.panel-heading "Settings"]
-         [:.panel-body
-          [:.row
-           [:.col-sm-6
-            [:form.form-horizontal
-             [:.form-group
-              [:label.control-label {:class label-class} "Learning rate"]
-              [:div {:class input-class}
-               (widgets/input settings [:train-opts :learning-rate] parse-float)]]
-             [:.form-group
-              [:label.control-label {:class label-class} "Momentum"]
-              [:div {:class input-class}
-               (widgets/input settings [:train-opts :momentum] parse-float)]]
-             [:.form-group
-              [:label.control-label {:class label-class} "L2 lambda"]
-              [:div {:class input-class}
-               (widgets/input settings [:train-opts :l2-lambda] parse-float)]]
-             [:.form-group
-              [:label.control-label {:class label-class} "Iterations"]
-              [:div {:class input-class}
-               (widgets/input settings [:train-opts :iter-count] js/parseInt)]]
-             [:.form-group
-              [:div {:class (str input-class " col-sm-offset-" label-width)}
-               (if running?
-                 [:button.btn.btn-block.btn-danger
-                  {:type "button" :on-click #(go (>! abort-chan true))}
-                  "Abort"]
-                 [:button.btn.btn-block.btn-primary
-                  {:type "button" :on-click #(go (>! start-chan true))}
-                  "Start"])]]]]
-           [:.col-sm-6
-            [:form.form-horizontal
-             [:.form-group
-              [:label.control-label {:class label-class} "Hidden layer"]
-              [:div {:class input-class}
+    (html
+      [:.panel.panel-default.settings
+       [:.panel-heading "Settings"]
+       [:.panel-body
+        [:.row
+         [:.col-sm-6
+          [:form.form-horizontal
+           [:.form-group
+            [:label.control-label.col-sm-4 "Learning rate"]
+            [:.col-sm-8
+             (widgets/input settings [:train-opts :learning-rate] parse-float)]]
+           [:.form-group
+            [:label.control-label.col-sm-4 "Momentum"]
+            [:.col-sm-8
+             (widgets/input settings [:train-opts :momentum] parse-float)]]
+           [:.form-group
+            [:label.control-label.col-sm-4 "L2 lambda"]
+            [:.col-sm-8
+             (widgets/input settings [:train-opts :l2-lambda] parse-float)]]
+           [:.form-group
+            [:label.control-label.col-sm-4 "Iterations"]
+            [:.col-sm-8
+             (widgets/input settings [:train-opts :iter-count] js/parseInt)]]
+           [:.form-group
+            [:.col-sm-8.col-sm-offset-4
+             (if running?
+               [:button.btn.btn-block.btn-danger
+                {:type "button" :on-click #(go (>! abort-chan true))}
+                "Abort"]
+               [:button.btn.btn-block.btn-primary
+                {:type "button" :on-click #(go (>! start-chan true))}
+                "Start"])]]]]
+         [:.col-sm-6
+          [:form.form-horizontal
+           [:.form-group
+            [:.col-sm-8
+             [:.row
+              [:.col-sm-6
+               [:label.control-label "Hidden layer"]]
+              [:.col-sm-6
                [:select.form-control
                 {:on-change #(->> (.. % -target -value)
                                   (str->keyword)
                                   (om/update! settings [:mutation-opts :hidden-type]))
                  :value     (:hidden-type (:train-opts settings))}
                 (for [choice (:hidden-choices settings)]
-                  [:option {:value choice} (name choice)])]]]
+                  [:option {:value choice} (name choice)])]]]]
+            [:.col-sm-4
+             (widgets/input settings [:mutation-opts :hidden-count] js/parseInt)]]
 
-             [:.form-group
-              [:label.control-label {:class label-class} "Output layer"]
-              [:div {:class input-class}
-               [:select.form-control
-                {:value (:out-type (:train-opts settings))
-                 :on-change #(->> (.. % -target -value)
-                                  (str->keyword)
-                                  (om/update! settings [:mutation-opts :out-type]))}
-                (for [choice (:out-choices settings)]
-                  [:option {:value choice} (name choice)])]]]
+           [:.form-group
+            [:.col-sm-4
+             [:label.control-label "Output layer"]]
+            [:.col-sm-8
+             [:select.form-control
+              {:value (:out-type (:train-opts settings))
+               :on-change #(->> (.. % -target -value)
+                                (str->keyword)
+                                (om/update! settings [:mutation-opts :out-type]))}
+              (for [choice (:out-choices settings)]
+                [:option {:value choice} (name choice)])]]]
 
-             (widgets/checkbox settings [:mutation-opts :remove-edges?] "Remove edges?")
-             (widgets/checkbox settings [:mutation-opts :remove-nodes?] "Remove nodes?")
-             (widgets/checkbox settings [:mutation-opts :add-layers?] "Add layers?")
-             (om/build widgets/radio
-                       {:cursor settings
-                        :path [:mutation-opts :mode]
-                        :choices [["Classification" ::commands/classification]
-                                  ["Regression" ::commands/regression]]
-                        :clean-fn str->keyword})]]]]]))))
+           [:.form-group
+            [:.col-xs-6
+             (widgets/checkbox settings [:mutation-opts :remove-edges?] "Remove edges?")]
+            [:.col-xs-6
+             (widgets/checkbox settings [:mutation-opts :remove-nodes?] "Remove nodes?")]]
+
+           [:.form-group
+            [:.col-xs-6
+             (widgets/checkbox settings [:mutation-opts :add-layers?] "Add layers?")]]
+
+           (om/build widgets/radio
+                     {:cursor settings
+                      :path [:mutation-opts :mode]
+                      :choices [["Classification" ::commands/classification]
+                                ["Regression" ::commands/regression]]
+                      :clean-fn str->keyword})]]]]])))

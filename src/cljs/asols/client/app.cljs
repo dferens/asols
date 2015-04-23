@@ -19,7 +19,8 @@
 (defn mutation-opts []
   (->MutationOpts
     ::commands/classification
-    nil nil
+    nil 1
+    nil
     true true false))
 
 (defonce app-state

@@ -12,23 +12,22 @@
   {:pre [(om/cursor? cursor)
          (coll? path)
          (string? label-text)]}
-  [:.form-group
-   [:.col-sm-12
-    [:label.checkbox
-     [:input.custom-checkbox
-      {:type      "checkbox"
-       :checked   (when (get-in cursor path) "checked")
-       :on-change #(om/update! cursor path (.. % -target -checked))}]
-     [:span.icons
-      [:span.icon-checked]
-      [:span.icon-unchecked]]
-     label-text]]])
+  [:label.checkbox
+   [:input.custom-checkbox
+    {:type      "checkbox"
+     :checked   (when (get-in cursor path) "checked")
+     :on-change #(om/update! cursor path (.. % -target -checked))}]
+   [:span.icons
+    [:span.icon-checked]
+    [:span.icon-unchecked]]
+   label-text])
 
 (defcomponent radio
   "Radio choice field which binds selected value to path in cursor
   Calls clean-fn before updating cursor if given"
   [{:keys [cursor path choices clean-fn]
-    :or {clean-fn identity}} owner]
+    :or {clean-fn identity}}
+   owner]
   (init-state [_] {:inputs nil})
 
   (did-mount [_]

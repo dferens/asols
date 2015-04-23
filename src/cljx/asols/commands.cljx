@@ -9,7 +9,10 @@
 
 (defrecord TrainOpts [learning-rate momentum l2-lambda iter-count])
 
-(defrecord MutationOpts [mode hidden-type out-type remove-edges? remove-nodes? add-layers?])
+(defrecord MutationOpts [mode
+                         hidden-type hidden-count
+                         out-type
+                         remove-edges? remove-nodes? add-layers?])
 
 (defrecord SolvingCase [mode mutation train-value test-value graph])
 

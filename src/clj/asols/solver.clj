@@ -22,11 +22,13 @@
   (let [{:keys [inputs-count outputs-count]} dataset
         hidden-type (:hidden-type mutation-opts)
         out-type (:out-type mutation-opts)
-        [net h1] (-> (network/network inputs-count outputs-count out-type)
-                     (network/add-layer hidden-type)
-                     (network/add-node 1))]
-    (-> net
-        (network/full-connect 1 h1)
+        node-adder (fn [net _]
+                     (let [[new-net node] (network/add-node net 1)]
+                       (network/full-connect new-net 1 node)))
+        nodes-adder #(reduce node-adder % (range (:hidden-count mutation-opts)))]
+    (-> (network/network inputs-count outputs-count out-type)
+        (network/add-layer hidden-type)
+        (nodes-adder)
         (trainer/train dataset train-opts))))
 
 (defn- get-mutations
