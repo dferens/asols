@@ -9,8 +9,12 @@
             [ring.middleware.resource :refer [wrap-resource]]
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.not-modified :refer [wrap-not-modified]]
+            [taoensso.timbre :as timbre]
             [asols.solver :refer [init]]
-            [asols.commands :refer [deserialize]]))
+            [asols.commands :refer [deserialize]]
+            [asols.logs]))
+
+(timbre/refer-timbre)
 
 (defn index [req]
   (-> (slurp "resources/public/templates/index.html")
@@ -22,13 +26,13 @@
     req chord-chan
     {:format :transit-json
      :write-ch (chan 10)}
-    (prn "Client connected")
+    (debug "Client connected")
     (let [in-chan (chan)
           out-chan chord-chan]
       (go-loop [frame (<! chord-chan)]
         (if (nil? frame)
           (do
-            (prn "Client disconnected")
+            (debug "Client disconnected")
             (close! in-chan))
           (let [{message :message} frame]
             (>! in-chan (deserialize message))
