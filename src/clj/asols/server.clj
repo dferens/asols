@@ -19,7 +19,9 @@
 
 (defn ws-handler [req]
   (with-channel
-    req chord-chan {:format :transit-json}
+    req chord-chan
+    {:format :transit-json
+     :write-ch (chan 10)}
     (prn "Client connected")
     (let [in-chan (chan)
           out-chan chord-chan]

@@ -1,5 +1,5 @@
 (ns asols.solver
-  (:require [clojure.core.async :refer [<! >! <!! >!! chan close! alts!! timeout go go-loop]]
+  (:require [clojure.core.async :refer [<! >! <!! >!! chan close! mult tap alts!! timeout go go-loop]]
             [clojure.core.matrix.stats :refer [mean variance]]
             [asols.network :as network]
             [asols.trainer :as trainer]
@@ -86,10 +86,57 @@
         test-value (calc-net-value solver trained-net (:test dataset))]
     (commands/->SolvingCase mode new-mutation train-value test-value graph)))
 
+(defn pmap-cancelable
+  "Like pmap"
+  [f & colls]
+  (let [state (atom {:done-count 0 :last-result nil :aborted? false})]
+    [(apply
+       pmap
+       (fn [& args]
+         (when-not (:aborted? @state)
+           (let [result (apply f args)]
+             (swap! state #(assoc % :done-count (inc (:done-count %))
+                                    :last-result result))
+             result)))
+       colls)
+     state]))
+
 (defn solve-net
   [solver net progress-chan abort-chan]
   (let [mutations (get-mutations solver net)
-        cases (for [i (range (count mutations))
+        [cases state] (pmap-cancelable #(solve-mutation solver %) mutations)]
+    (go (when (<! abort-chan) (reset! state (assoc @state :aborted? true))))
+    (add-watch state :progress
+               (fn [_ _ _ {last-case :last-result done :done-count}]
+                 (>!! progress-chan {:mutation (:mutation last-case)
+                                     :value    (/ done (count mutations))})))
+    (let [[sorted-cases ms-took] (time-it (sort-cases solver cases))
+          [[best-case] other-cases] (split-at 1 sorted-cases)]
+      (commands/->Solving best-case other-cases ms-took))))
+
+#_(defn solve-net
+  [solver net progress-chan abort-chan]
+  (let [mutations (get-mutations solver net)
+        aborted-atom (atom false)
+        progress (atom {:done 0 :last nil})
+        solver-fn (fn [mut-i]
+                    (if-not @aborted-atom
+                      (let [m (nth mutations mut-i)
+                            case (solve-mutation solver m)]
+                        (swap! progress #(assoc % :done (inc (:done %))
+                                                  :last (:mutation case)))
+                        case)))]
+    (go
+      (when (<! abort-chan)
+        (swap! aborted-atom not)))
+
+    (add-watch progress :main
+      (fn [{mutation :last done-count :done}]
+        (>!! progress-chan {:mutation mutation :value (/ done-count (count mutations))})))
+
+    (let [cases (pmap solver-fn (range (count mutations)))
+
+          #_cases #_(for [i (range (count mutations))
                     :let [m (nth mutations i)
                           case (solve-mutation solver m)
                           progress {:mutation m
@@ -99,12 +146,12 @@
                 (do
                   (>!! progress-chan progress)
                   case))
-        [[[best-case] cases] ms-took] (time-it (split-at 1 (sort-cases solver cases)))]
-    (commands/->Solving best-case cases ms-took)))
+          [[[best-case] cases] ms-took] (time-it (split-at 1 (sort-cases solver cases)))]
+      (commands/->Solving best-case cases ms-took))))
 
 (defn solver-loop
   [solver out-chan abort-chan]
-  (let [progress-chan (chan)
+  (let [progress-chan (chan 20)
         loop-abort-chan (chan)]
     (go-loop [{:keys [mutation value]} (<! progress-chan)]
       (when-not (nil? value)
