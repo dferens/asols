@@ -17,6 +17,7 @@
                  [dorothy "0.0.6"]
                  [jarohen/chord "0.6.0"]
                  [compojure "1.3.1"]
+                 [com.climate/claypoole "1.0.0"]
                  [net.mikera/vectorz-clj "0.29.0"]
                  [net.mikera/core.matrix.stats "0.5.0"]]
 

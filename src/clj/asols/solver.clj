@@ -1,5 +1,6 @@
 (ns asols.solver
   (:require [clojure.core.async :refer [<! >! <!! >!! chan close! mult tap alts!! timeout go go-loop]]
+            [com.climate.claypoole :as cpool]
             [clojure.core.matrix.stats :refer [mean variance]]
             [asols.network :as network]
             [asols.trainer :as trainer]
@@ -45,10 +46,11 @@
     (sort-by :test-value cases)))
 
 (defn- create-solver
-  [dataset t-opts m-opts]
-  (case (:mode m-opts)
-    ::commands/regression (->RegressionSolver dataset t-opts m-opts)
-    ::commands/classification (->ClassificationSolver dataset t-opts m-opts)))
+  [t-opts m-opts]
+  (let [dataset data/monks3]
+    (case (:mode m-opts)
+     ::commands/regression (->RegressionSolver dataset t-opts m-opts)
+     ::commands/classification (->ClassificationSolver dataset t-opts m-opts))))
 
 (defn create-start-net
   [{:keys [dataset train-opts mutation-opts]}]
@@ -88,10 +90,10 @@
 
 (defn pmap-cancelable
   "Like pmap"
-  [f & colls]
+  [tpool f & colls]
   (let [state (atom {:done-count 0 :last-result nil :aborted? false})]
     [(apply
-       pmap
+       (partial cpool/pmap tpool)
        (fn [& args]
          (when-not (:aborted? @state)
            (let [result (apply f args)]
@@ -102,52 +104,18 @@
      state]))
 
 (defn solve-net
-  [solver net progress-chan abort-chan]
+  [solver net progress-chan abort-chan tpool]
   (let [mutations (get-mutations solver net)
-        [cases state] (pmap-cancelable #(solve-mutation solver %) mutations)]
+        [cases state] (pmap-cancelable tpool #(solve-mutation solver %) mutations)]
     (go (when (<! abort-chan) (reset! state (assoc @state :aborted? true))))
     (add-watch state :progress
-               (fn [_ _ _ {last-case :last-result done :done-count}]
-                 (>!! progress-chan {:mutation (:mutation last-case)
-                                     :value    (/ done (count mutations))})))
+               (fn [_ _ _ {aborted? :aborted? last-case :last-result done :done-count}]
+                 (when-not aborted?
+                   (>!! progress-chan {:mutation (:mutation last-case)
+                                       :value    (/ done (count mutations))}))))
     (let [[sorted-cases ms-took] (time-it (sort-cases solver cases))
           [[best-case] other-cases] (split-at 1 sorted-cases)]
       (commands/->Solving best-case other-cases ms-took))))
-
-#_(defn solve-net
-  [solver net progress-chan abort-chan]
-  (let [mutations (get-mutations solver net)
-        aborted-atom (atom false)
-        progress (atom {:done 0 :last nil})
-        solver-fn (fn [mut-i]
-                    (if-not @aborted-atom
-                      (let [m (nth mutations mut-i)
-                            case (solve-mutation solver m)]
-                        (swap! progress #(assoc % :done (inc (:done %))
-                                                  :last (:mutation case)))
-                        case)))]
-    (go
-      (when (<! abort-chan)
-        (swap! aborted-atom not)))
-
-    (add-watch progress :main
-      (fn [{mutation :last done-count :done}]
-        (>!! progress-chan {:mutation mutation :value (/ done-count (count mutations))})))
-
-    (let [cases (pmap solver-fn (range (count mutations)))
-
-          #_cases #_(for [i (range (count mutations))
-                    :let [m (nth mutations i)
-                          case (solve-mutation solver m)
-                          progress {:mutation m
-                                    :value (/ (inc i) (count mutations))}
-                          [abort? _] (alts!! [abort-chan] :default false)]
-                    :while (not abort?)]
-                (do
-                  (>!! progress-chan progress)
-                  case))
-          [[[best-case] cases] ms-took] (time-it (split-at 1 (sort-cases solver cases)))]
-      (commands/->Solving best-case cases ms-took))))
 
 (defn solver-loop
   [solver out-chan abort-chan]
@@ -157,24 +125,25 @@
       (when-not (nil? value)
         (when (>! out-chan (commands/progress mutation value))
           (recur (<! progress-chan)))))
-    (loop [current-net (create-start-net solver)
-           current-value (calc-net-value solver current-net (:test (:dataset solver)))]
-      (let [solving-chan (go (solve-net solver current-net progress-chan loop-abort-chan))
-            [solving ch] (alts!! [abort-chan solving-chan])]
-        (if (= ch abort-chan)
-          (>!! loop-abort-chan true)
-          (let [[better? best?] (test-solving solver solving current-value)]
-            (if better?
-              (do
-                (>!! out-chan (commands/step solving))
-                (prn "Sent step")
-                (if best?
-                  (when (>!! out-chan (commands/finished))
-                    (prn "Finished, found best solution"))
-                  (recur (:network (:mutation (:best-case solving)))
-                         (:test-value (:best-case solving)))))
-              (when (>!! out-chan (commands/finished solving))
-                (prn "Finished, could not find better solution")))))))))
+    (cpool/with-shutdown! [tpool (cpool/threadpool (cpool/ncpus))]
+      (loop [current-net (create-start-net solver)
+            current-value (calc-net-value solver current-net (:test (:dataset solver)))]
+       (let [solving-chan (go (solve-net solver current-net progress-chan loop-abort-chan tpool))
+             [solving ch] (alts!! [abort-chan solving-chan])]
+         (if (= ch abort-chan)
+           (>!! loop-abort-chan true)
+           (let [[better? best?] (test-solving solver solving current-value)]
+             (if better?
+               (do
+                 (>!! out-chan (commands/step solving))
+                 (prn "Sent step")
+                 (if best?
+                   (when (>!! out-chan (commands/finished))
+                     (prn "Finished, found best solution"))
+                   (recur (:network (:mutation (:best-case solving)))
+                          (:test-value (:best-case solving)))))
+               (when (>!! out-chan (commands/finished solving))
+                 (prn "Finished, could not find better solution"))))))))))
 
 (defn init [in-chan out-chan]
   (let [abort-chan (chan)
@@ -186,7 +155,7 @@
           (prn "Recieved command:" command)
           (case (:command command)
             ::commands/start (let [{:keys [train-opts mutation-opts]} command
-                                   solver (create-solver data/monks1 train-opts mutation-opts)]
+                                   solver (create-solver train-opts mutation-opts)]
                                (go (solver-loop solver out-chan abort-chan)))
             ::commands/abort (>!! abort-chan true)
             :default (prn "Unknown command:" command))
