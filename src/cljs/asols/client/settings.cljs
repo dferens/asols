@@ -53,7 +53,6 @@
                                        :path [:mutation-opts :dataset]
                                        :choices (:datasets settings)
                                        :clean-fn str->keyword})]]
-
            [:.form-group
             [:.col-sm-8
              [:.row
@@ -76,16 +75,15 @@
                                        :choices (:out-types settings)
                                        :clean-fn str->keyword})]]
            [:.form-group
-            [:.col-xs-6
+            [:.col-xs-4
              (om/build widgets/checkbox {:cursor settings
                                          :path [:mutation-opts :remove-edges?]
-                                         :label "Remove edges?"})]
-            [:.col-xs-6
+                                         :label "Drop edges?"})]
+            [:.col-xs-4
              (om/build widgets/checkbox {:cursor settings
                                          :path [:mutation-opts :remove-nodes?]
-                                         :label "Remove nodes?"})]]
-           [:.form-group
-            [:.col-xs-6
+                                         :label "Drop nodes?"})]
+            [:.col-xs-4
              (om/build widgets/checkbox {:cursor settings
                                          :path [:mutation-opts :add-layers?]
                                          :label "Add layers?"})]]

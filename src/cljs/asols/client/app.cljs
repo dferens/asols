@@ -129,8 +129,7 @@
        [:.row-fluid
         [:.col-md-12
          (om/build stats-panel {:progress progress
-                                :solvings solvings
-                                :settings settings})]]])))
+                                :solvings solvings})]]])))
 
 (defn- launch []
   (debug "Starting app...")

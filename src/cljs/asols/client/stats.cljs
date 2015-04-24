@@ -45,7 +45,7 @@
   (render [_]
     (om/build widgets/highchart (errors-chart-config solvings))))
 
-(defcomponent stats-panel [{:keys [settings progress solvings]}]
+(defcomponent stats-panel [{:keys [progress solvings]}]
   (render [_]
     (html
       [:.panel.panel-success
