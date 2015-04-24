@@ -7,8 +7,8 @@
             [figwheel.client :as fw]
             [asols.commands :refer [->TrainOpts ->MutationOpts] :as commands]
             [asols.client.settings :refer [settings-panel]]
-            [asols.client.solvings :refer [solvings-panel mutation-view]]
-            [asols.client.stats :refer [failed-solving-panel stats-panel]]
+            [asols.client.solvings :refer [solvings-panel mutation-view failed-solving-panel]]
+            [asols.client.stats :refer [stats-panel]]
             [asols.client.utils :refer [parse-float str->keyword log debug error]])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 

@@ -6,14 +6,6 @@
             [asols.client.widgets :as widgets]
             [asols.client.utils :refer [debug]]))
 
-(defcomponent failed-solving-panel [solving]
-  (render [_]
-    (html
-      [:.panel.panel-info
-       [:.panel-heading "Further tryings:"]
-       [:ul.list-group
-        (om/build solving-block {:solving solving :visible? true})]])))
-
 (defn test-value-serie
   [solvings]
   (->> (map :best-case solvings)
@@ -26,20 +18,19 @@
 
 (defn- errors-chart-config
   [solvings]
-  (let []
-    {:chart {:type "spline"
-             :height "400"}
-     :title {:text "Test & train errors"}
-     :xAxis {:minorTickInterval 1
-             :tickInterval 1}
-     :yAxis {:title {:text "Error"}
-             :type "logarithmic"
-             :maxPadding 0}
-     :tooltip {:headerFormat "<b>{series.name}</b><br/>"}
-     :plotOptions {:line {:dataLabels {:enabled true}
-                          :enableMouseTracking false}}
-     :series [{:name "Train error" :data (train-value-serie solvings)}
-              {:name "Test error" :data (test-value-serie solvings)}]}))
+  {:chart {:type "spline"
+           :height "400"}
+   :title {:text "Test & train errors"}
+   :xAxis {:minorTickInterval 1
+           :tickInterval 1}
+   :yAxis {:title {:text "Error"}
+           :type "logarithmic"
+           :maxPadding 0}
+   :tooltip {:headerFormat "<b>{series.name}</b><br/>"}
+   :plotOptions {:line {:dataLabels {:enabled true}
+                        :enableMouseTracking false}}
+   :series [{:name "Train error" :data (train-value-serie solvings)}
+            {:name "Test error" :data (test-value-serie solvings)}]})
 
 (defcomponent errors-chart [{solvings :solvings}]
   (render [_]

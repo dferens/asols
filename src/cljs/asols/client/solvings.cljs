@@ -126,3 +126,11 @@
            (om/build solving-block
                      {:number  (inc i) :solving (nth solvings i)}
                      {:react-key i}))]]])))
+
+(defcomponent failed-solving-panel [solving]
+  (render [_]
+    (html
+      [:.panel.panel-info
+       [:.panel-heading "Further tryings:"]
+       [:ul.list-group
+        (om/build solving-block {:solving solving :visible? true})]])))
