@@ -9,7 +9,7 @@
 
 (defrecord TrainOpts [learning-rate momentum l2-lambda iter-count])
 
-(defrecord MutationOpts [mode
+(defrecord MutationOpts [mode dataset
                          hidden-type hidden-count
                          out-type
                          remove-edges? remove-nodes? add-layers?])
@@ -25,10 +25,11 @@
 (defmethod deserialize :default [cmd] cmd)
 
 #+clj
-(defn init [hidden-types out-types]
-  {:command ::init
-   :hidden-choices hidden-types
-   :out-choices    out-types})
+(defn init [hidden-types out-types datasets]
+  {:command      ::init
+   :hidden-types hidden-types
+   :out-types    out-types
+   :datasets     datasets})
 
 #+clj
 (defn progress

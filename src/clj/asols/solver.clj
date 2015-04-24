@@ -47,7 +47,7 @@
 
 (defn- create-solver
   [t-opts m-opts]
-  (let [dataset data/monks3]
+  (let [dataset (data/datasets (:dataset m-opts))]
     (case (:mode m-opts)
      ::commands/regression (->RegressionSolver dataset t-opts m-opts)
      ::commands/classification (->ClassificationSolver dataset t-opts m-opts))))
@@ -147,7 +147,9 @@
 
 (defn init [in-chan out-chan]
   (let [abort-chan (chan)
-        init-cmd (commands/init (trainer/hidden-types) (trainer/out-types))]
+        init-cmd (commands/init (trainer/hidden-types)
+                                (trainer/out-types)
+                                (keys data/datasets))]
     (go
       (>! out-chan init-cmd)
       (loop [command (<! in-chan)]

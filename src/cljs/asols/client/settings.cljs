@@ -46,18 +46,24 @@
          [:.col-sm-6
           [:form.form-horizontal
            [:.form-group
+            [:.col-sm-4
+             [:label.control-label "Dataset"]]
+            [:.col-sm-8
+             (om/build widgets/select {:cursor settings
+                                       :path [:mutation-opts :dataset]
+                                       :choices (:datasets settings)
+                                       :clean-fn str->keyword})]]
+
+           [:.form-group
             [:.col-sm-8
              [:.row
               [:.col-sm-6
                [:label.control-label "Hidden layer"]]
               [:.col-sm-6
-               [:select.form-control
-                {:on-change #(->> (.. % -target -value)
-                                  (str->keyword)
-                                  (om/update! settings [:mutation-opts :hidden-type]))
-                 :value     (:hidden-type (:train-opts settings))}
-                (for [choice (:hidden-choices settings)]
-                  [:option {:value choice} (name choice)])]]]]
+               (om/build widgets/select {:cursor settings
+                                         :path [:mutation-opts :hidden-type]
+                                         :choices (:hidden-types settings)
+                                         :clean-fn str->keyword})]]]
             [:.col-sm-4
              (widgets/input settings [:mutation-opts :hidden-count] parse-int)]]
 
@@ -65,27 +71,27 @@
             [:.col-sm-4
              [:label.control-label "Output layer"]]
             [:.col-sm-8
-             [:select.form-control
-              {:value (:out-type (:train-opts settings))
-               :on-change #(->> (.. % -target -value)
-                                (str->keyword)
-                                (om/update! settings [:mutation-opts :out-type]))}
-              (for [choice (:out-choices settings)]
-                [:option {:value choice} (name choice)])]]]
-
+             (om/build widgets/select {:cursor settings
+                                       :path [:mutation-opts :out-type]
+                                       :choices (:out-types settings)
+                                       :clean-fn str->keyword})]]
            [:.form-group
             [:.col-xs-6
-             (widgets/checkbox settings [:mutation-opts :remove-edges?] "Remove edges?")]
+             (om/build widgets/checkbox {:cursor settings
+                                         :path [:mutation-opts :remove-edges?]
+                                         :label "Remove edges?"})]
             [:.col-xs-6
-             (widgets/checkbox settings [:mutation-opts :remove-nodes?] "Remove nodes?")]]
-
+             (om/build widgets/checkbox {:cursor settings
+                                         :path [:mutation-opts :remove-nodes?]
+                                         :label "Remove nodes?"})]]
            [:.form-group
             [:.col-xs-6
-             (widgets/checkbox settings [:mutation-opts :add-layers?] "Add layers?")]]
+             (om/build widgets/checkbox {:cursor settings
+                                         :path [:mutation-opts :add-layers?]
+                                         :label "Add layers?"})]]
 
-           (om/build widgets/radio
-                     {:cursor settings
-                      :path [:mutation-opts :mode]
-                      :choices [["Classification" ::commands/classification]
-                                ["Regression" ::commands/regression]]
-                      :clean-fn str->keyword})]]]]])))
+           (om/build widgets/radio {:cursor settings
+                                    :path [:mutation-opts :mode]
+                                    :choices [["Classification" ::commands/classification]
+                                              ["Regression" ::commands/regression]]
+                                    :clean-fn str->keyword})]]]]])))

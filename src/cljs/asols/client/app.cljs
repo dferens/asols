@@ -18,7 +18,7 @@
 
 (defn mutation-opts []
   (->MutationOpts
-    ::commands/classification
+    ::commands/classification nil
     nil 1
     nil
     true true false))
@@ -29,8 +29,9 @@
          :progress nil
          :settings {:train-opts (->TrainOpts 0.3 0.5 5E-8 100)
                     :mutation-opts (mutation-opts)
-                    :hidden-choices []
-                    :out-choices []}
+                    :hidden-types []
+                    :out-types []
+                    :datasets []}
          :solvings []
          :failed-solving nil}))
 
@@ -39,12 +40,14 @@
   (debug (str "Sending command: " (:command cmd)))
   (go (>! (:connection app) cmd)))
 
-(defn init [app hidden-choices out-choices]
+(defn init [app hidden-types out-types datasets]
   (-> app
-      (assoc-in [:settings :hidden-choices] hidden-choices)
-      (assoc-in [:settings :out-choices] out-choices)
-      (assoc-in [:settings :mutation-opts :hidden-type] (first hidden-choices))
-      (assoc-in [:settings :mutation-opts :out-type] (first out-choices))))
+      (assoc-in [:settings :hidden-types] hidden-types)
+      (assoc-in [:settings :out-types] out-types)
+      (assoc-in [:settings :datasets] datasets)
+      (assoc-in [:settings :mutation-opts :hidden-type] (first hidden-types))
+      (assoc-in [:settings :mutation-opts :out-type] (first out-types))
+      (assoc-in [:settings :mutation-opts :dataset] (first datasets))))
 
 (defn start [app]
   (let [{:keys [train-opts mutation-opts]} (:settings app)
@@ -93,7 +96,7 @@
                    (debug (str "Received command: " (:command m)))
                    (case (:command m)
                      ::commands/init
-                     (om/transact! cursor #(init % (:hidden-choices m) (:out-choices m)))
+                     (om/transact! cursor #(init % (:hidden-types m) (:out-types m) (:datasets m)))
 
                      ::commands/progress
                      (om/transact! cursor #(update-progress % (:mutation m) (:value m)))

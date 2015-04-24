@@ -6,21 +6,20 @@
             [goog.string.format]
             [asols.client.utils :refer [debug]]))
 
-(defn checkbox
+(defcomponent checkbox
   "Simple form checkbox field which binds its value to path in cursor"
-  [cursor path label-text]
-  {:pre [(om/cursor? cursor)
-         (coll? path)
-         (string? label-text)]}
-  [:label.checkbox
-   [:input.custom-checkbox
-    {:type      "checkbox"
-     :checked   (when (get-in cursor path) "checked")
-     :on-change #(om/update! cursor path (.. % -target -checked))}]
-   [:span.icons
-    [:span.icon-checked]
-    [:span.icon-unchecked]]
-   label-text])
+  [{:keys [cursor path label]}]
+  (render [_]
+    (html
+      [:label.checkbox
+       [:input.custom-checkbox
+        {:type      "checkbox"
+         :checked   (when (get-in cursor path) "checked")
+         :on-change #(om/update! cursor path (.. % -target -checked))}]
+       [:span.icons
+        [:span.icon-checked]
+        [:span.icon-unchecked]]
+       label])))
 
 (defcomponent radio
   "Radio choice field which binds selected value to path in cursor
@@ -67,6 +66,19 @@
     {:value     (get-in cursor path)
      :on-change #(let [value (.. % -target -value)]
                   (om/update! cursor path (clean-fn value)))}]))
+
+(defcomponent select [{:keys [cursor path choices clean-fn]
+                       :or {clean-fn identity}}]
+  (render [_]
+    (html
+      (let [selected-value (str (get-in cursor path))]
+        [:select.form-control
+         {:value     selected-value
+          :on-change #(->> (.. % -target -value)
+                           (clean-fn)
+                           (om/update! cursor path))}
+         (for [choice choices]
+           [:option {:value (str choice)} (name choice)])]))))
 
 (defn progress-bar
   [value]

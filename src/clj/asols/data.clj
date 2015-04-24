@@ -52,18 +52,23 @@
         [train test] (map (comp vec read-file) [train-file test-file])]
     (->Dataset train test 6 2)))
 
-(def monks1
+(def ^:private monks1
   "Problem:
     (a1 = a2) or (a5 = 1)"
   (parse-monks-dataset "monks-1_learn.tab" "monks-1_test.tab"))
 
-(def monks2
+(def ^:private monks2
   "Problem:
     EXACTLY TWO of {a1 = 1, a2 = 1, a3 = 1, a4 = 1, a5 = 1, a6 = 1}"
   (parse-monks-dataset "monks-2_learn.tab" "monks-2_test.tab"))
 
-(def monks3
+(def ^:private monks3
   "Problem:
     (a5 = 3 and a4 = 1) or (a5 /= 4 and a2 /= 3)
     (5% class noise added to the training set)"
   (parse-monks-dataset "monks-3_learn.tab" "monks-3_test.tab"))
+
+(def datasets
+  {::monks1 monks1
+   ::monks2 monks2
+   ::monks3 monks3})
