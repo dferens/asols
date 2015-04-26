@@ -1,6 +1,5 @@
 (ns asols.solver
-  (:require [clojure.pprint :as pp]
-            [clojure.core.async :refer [<! >! >!! chan alts!! go go-loop]]
+  (:require [clojure.core.async :refer [<! >! >!! chan alts!! go go-loop]]
             [clojure.core.matrix.stats :refer [mean variance]]
             [com.climate.claypoole :as cpool]
             [taoensso.timbre :as timbre]
@@ -33,8 +32,9 @@
     (* 100 (trainer/calc-ca net entries)))
   (test-solving [_ solving prev-net-value]
     (let [curr-value (:test-value (:best-case solving))
-          better? (> curr-value prev-net-value)
+          better? (>= curr-value prev-net-value)
           best? (= curr-value 100.0)]
+      (when-not better? (debug curr-value) (debug prev-net-value))
       [better? best?]))
   (sort-cases [_ cases]
     (reverse (sort-by :test-value cases))))

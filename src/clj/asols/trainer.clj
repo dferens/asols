@@ -107,9 +107,11 @@
   [net values layer]
   (let [in-vec (for [node (:nodes layer)
                      :let [in-edges (network/in-edges net node)]]
-                 (sum (for [[node-from _ :as edge] in-edges]
-                        (* (values node-from)
-                           (network/get-weight net edge)))))
+                 (reduce +
+                   (network/get-bias net node)
+                   (for [[node-from _ :as edge] in-edges]
+                     (* (values node-from)
+                        (network/get-weight net edge)))))
         out-vec (forward layer (m/array in-vec))]
     (into values (map vector (:nodes layer) out-vec))))
 
@@ -167,46 +169,42 @@
                                             (* momentum (get prev-delta-w e 0))
                                             (* -1 l2-lambda learning-rate weight
                                                (/ e-count)))]
-                             [e delta-w])))]
-    [delta-w deltas-map cost-val]))
+                             [e delta-w])))
+        delta-b (into {} (for [layer (rest (:layers net))
+                               node (:nodes layer)
+                               :let [delta-b (* -1 learning-rate
+                                                (deltas-map node))]]
+                           [node delta-b]))]
+    [delta-w delta-b cost-val]))
 
 (defn- backprop-step
   "Performs forward & backward pass and tunes network weights.
   Returns new network and weights deltas being made."
   [net entry entries-count t-opts prev-delta-w]
-  (let [[delta-w deltas cost-val] (backprop-delta-weights net entry entries-count t-opts prev-delta-w)
-        new-net (update-in net [:edges] #(merge-with + % delta-w))]
-    [new-net delta-w deltas cost-val]))
+  (let [[delta-w delta-b cost-val] (backprop-delta-weights net entry entries-count t-opts prev-delta-w)
+        new-net (-> net (update-in [:edges] #(merge-with + % delta-w))
+                        (update-in [:biases] #(merge-with + % delta-b)))]
+    [new-net delta-w cost-val]))
 
 (defn train-epoch
   "Trains given network on a dataset for single epoch.
   Returns vector:
-    [net          - trained network
-     cost-val     - average cost value
-     delta-w-coll - collection of delta weights for each dataset entry
-                    [{[:a :b] 0.1, ...}, {...}, ...]
-     deltas-coll] - collection of deltas (errors) of nodes for each entry
-                    [{:a 0.1, :b 0.2, ...}, {...}, ...]"
+    [net           - trained network
+     cost-val]     - average cost value"
   [start-net entries t-opts]
   (let [e-count (count entries)]
     (loop [curr-net start-net
            entries-left entries
-           delta-w-coll []
-           deltas-coll (transient [])
+           curr-delta-w nil
            cost-accum 0]
       (if (empty? entries-left)
-        [curr-net
-         (/ cost-accum e-count)
-         delta-w-coll
-         (persistent! deltas-coll)]
+        [curr-net (/ cost-accum e-count)]
         (let [entry (first entries-left)
-              last-delta-w (last delta-w-coll)
-              step-result (backprop-step curr-net entry e-count t-opts last-delta-w)
-              [new-net new-delta-w new-deltas cost-val] step-result]
+              step-result (backprop-step curr-net entry e-count t-opts curr-delta-w)
+              [new-net new-delta-w cost-val] step-result]
           (recur new-net
                  (rest entries-left)
-                 (conj delta-w-coll new-delta-w)
-                 (conj! deltas-coll new-deltas)
+                 new-delta-w
                  (+ cost-accum cost-val)))))))
 
 (defn train
@@ -222,7 +220,7 @@
            curr-cost nil]
       (if (< iter-i iter-count)
         (let [train-result (train-epoch net entries t-opts)
-              [new-net new-cost _ _] train-result]
+              [new-net new-cost] train-result]
           (recur new-net
                  (inc iter-i)
                  new-cost))

@@ -34,7 +34,8 @@
   (single-edge? [this edge])
   (get-weight
     [this edge]
-    "Returns weight of given edge"))
+    "Returns weight of given edge")
+  (get-bias [this node]))
 
 (defrecord Layer [type nodes])
 
@@ -44,7 +45,7 @@
    (->Layer ::input (vec nodes))))
 
 (defn hidden-layer [type]
-  (->Layer type #{}))
+  (->Layer type []))
 
 (defn out-layer
   ([type]
@@ -52,7 +53,7 @@
   ([type nodes]
    (->Layer type (vec nodes))))
 
-(defrecord Network [layers edges next-node-id]
+(defrecord Network [layers edges biases next-node-id]
   NetworkProtocol
   (hidden-layers [_]
     (rest (butlast layers)))
@@ -81,7 +82,9 @@
                           [node-a node-b])]
       (nil? (second edges-between))))
   (get-weight [_ edge]
-    (edges edge)))
+    (edges edge))
+  (get-bias [_ node]
+    (get biases node 0)))
 
 (defn- rand-weight [{layers :layers}]
   "Returns randon number in range [-scale .. scale] where scale
@@ -186,7 +189,7 @@
 (defn network
   [in-count out-count out-type]
   (let [layers [(in-layer) (out-layer out-type)]
-        base-net (->Network layers {} (next-node-id))
+        base-net (->Network layers {} {} (next-node-id))
         node-adder #(fn [net _] (first (add-node net %)))]
     (as-> base-net $
           (reduce (node-adder 0) $ (range in-count))

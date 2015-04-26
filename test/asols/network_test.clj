@@ -14,7 +14,7 @@
   (let [empty-net (network 2 1 :out)]
     (testing "hidden-layers"
       (is (empty? (hidden-layers empty-net)))
-      (is (= (hidden-layers (->Network [:a :b :c] nil nil))
+      (is (= (hidden-layers (->Network [:a :b :c] nil nil nil))
              [:b])))
     (testing "in-edges"
       (is (empty? (in-edges empty-net :c)))
@@ -46,7 +46,7 @@
       (is (= (:nodes (first (:layers net))) [:a :c])))
     (let [[net node] (add-node base-net 1)]
       (is (= node :c)
-          (= (:nodes (first (hidden-layers net))) #{:c})))
+          (= (:nodes (first (hidden-layers net))) [:c])))
     (let [[net node] (add-node base-net 2)]
       (is (= node :c)
           (= (:nodes (last (:layers net))) [:c])))))
@@ -80,7 +80,7 @@
                   (split-node 2 :c)    ; becomes e
                   (split-node 2 :d))]  ; becomes f
       (is (= (map :nodes (:layers net))
-             (list [:a :b] #{:e :f} [:c :d])))
+             (list [:a :b] [:e :f] [:c :d])))
       (is (= (into #{} (keys (:edges net)))
              #{[:a :e] [:b :e] [:b :f]
                [:e :c] [:e :d]
@@ -112,5 +112,6 @@
   (is (= (network 1 2 :out-type)
          (->Network [(->Layer ::asols.network/input [:a])
                      (->Layer :out-type [:b :c])]
+                    {}
                     {}
                     :d))))
