@@ -3,9 +3,11 @@
             [om-tools.core :refer-macros [defcomponent]]
             [sablono.core :refer-macros [html]]
             [chord.client :refer [ws-ch]]
+            [chord.http :as http]
             [cljs.core.async :refer [<! >! chan close!]]
             [figwheel.client :as fw]
-            [asols.commands :refer [->TrainOpts ->MutationOpts] :as commands]
+            [asols.commands :as cmd]
+            [asols.network :as net]
             [asols.client.settings :refer [settings-panel]]
             [asols.client.solvings :refer [solvings-panel mutation-view failed-solving-panel]]
             [asols.client.stats :refer [stats-panel]]
@@ -14,11 +16,18 @@
 
 (enable-console-print!)
 
+(cljs.reader/register-tag-parser! 'asols.network.Network net/map->Network)
+(cljs.reader/register-tag-parser! 'asols.network.Layer net/map->Layer)
+(cljs.reader/register-tag-parser! 'asols.commands.Solving cmd/map->Solving)
+(cljs.reader/register-tag-parser! 'asols.commands.SolvingCase cmd/map->SolvingCase)
+(cljs.reader/register-tag-parser! 'asols.commands.TrainOpts cmd/map->TrainOpts)
+(cljs.reader/register-tag-parser! 'asols.commands.MutationOpts cmd/map->MutationOpts)
+
 ;; App state management
 
 (defn mutation-opts []
-  (->MutationOpts
-    ::commands/classification nil
+  (cmd/->MutationOpts
+    ::cmd/classification nil
     nil 1
     nil
     true true false))
@@ -27,7 +36,7 @@
   (atom {:connection nil
          :running? false
          :progress nil
-         :settings {:train-opts (->TrainOpts 0.3 0.5 5E-8 100)
+         :settings {:train-opts (cmd/->TrainOpts 0.3 0.5 5E-8 100)
                     :mutation-opts (mutation-opts)
                     :hidden-types []
                     :out-types []
@@ -40,6 +49,10 @@
   (debug (str "Sending command: " (:command cmd)))
   (go (>! (:connection app) cmd)))
 
+(defn- submit-results
+  [state]
+  (http/post "/analyze" {:body {"solvings" (:solvings state)}}))
+
 (defn init [app hidden-types out-types datasets]
   (-> app
       (assoc-in [:settings :hidden-types] hidden-types)
@@ -51,7 +64,7 @@
 
 (defn start [app]
   (let [{:keys [train-opts mutation-opts]} (:settings app)
-        start-cmd (commands/start train-opts mutation-opts)]
+        start-cmd (cmd/start train-opts mutation-opts)]
     (send-cmd app start-cmd))
   (assoc app :running? true
              :solvings []
@@ -70,11 +83,13 @@
 
 (defn finish [app failed-solving]
   (if (:running? app)
-    (assoc app :failed-solving failed-solving :running? false)
+    (do
+      (submit-results app)
+      (assoc app :failed-solving failed-solving :running? false))
     app))
 
 (defn abort [app]
-  (send-cmd app (commands/abort))
+  (send-cmd app (cmd/abort))
   (assoc app :running? false :progress nil))
 
 (defcomponent app [{:keys [settings running? progress solvings] :as cursor} owner]
@@ -92,20 +107,24 @@
                (recur (<! abort-chan)))
       (go-loop [frame (<! (:connection @cursor))]
                (when-not (nil? frame)
-                 (let [{m :message} frame]
-                   (debug (str "Received command: " (:command m)))
-                   (case (:command m)
-                     ::commands/init
-                     (om/transact! cursor #(init % (:hidden-types m) (:out-types m) (:datasets m)))
+                 (let [{error-text :error m :message} frame]
+                   (if error-text
+                     (error error-text)
+                     (do
+                       (debug (str "Received command: " (:command m)))
+                       (case (:command m)
+                         ::cmd/init
+                         (om/transact! cursor #(init % (:hidden-types m) (:out-types m) (:datasets m)))
 
-                     ::commands/progress
-                     (om/transact! cursor #(update-progress % (:mutation m) (:value m)))
+                         ::cmd/progress
+                         (om/transact! cursor #(update-progress % (:mutation m) (:value m)))
 
-                     ::commands/step
-                     (om/transact! cursor #(new-solving % (:solving m)))
+                         ::cmd/step
+                         (om/transact! cursor #(new-solving % (:solving m)))
 
-                     ::commands/finished
-                     (om/transact! cursor #(finish % (:solving m))))
+                         ::cmd/finished
+                         (om/transact! cursor #(finish % (:solving m))))))
+
                    (recur (<! (:connection @cursor))))))))
   (render-state [_ {:keys [abort-chan start-chan]}]
     (html
@@ -141,7 +160,7 @@
 
 (go
   (when (nil? (:connection @app-state))
-    (let [ws-chan (ws-ch "ws://localhost:8000/ws" {:format :transit-json})
+    (let [ws-chan (ws-ch "ws://localhost:8000/ws" {:format :edn})
           {connection :ws-channel error :error} (<! ws-chan)]
       (if error
         (do

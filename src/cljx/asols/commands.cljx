@@ -14,9 +14,9 @@
                          out-type
                          remove-edges? remove-nodes? add-layers?])
 
-(defrecord SolvingCase [mode mutation train-value test-value graph])
+(defrecord SolvingCase [mode mutation cost train-value test-value])
 
-(defrecord Solving [best-case cases ms-took])
+(defrecord Solving [initial-net train-opts mutation-opts best-case cases ms-took])
 
 #+clj
 (defmulti deserialize :command)
@@ -73,4 +73,3 @@
   [{:keys [train-opts mutation-opts] :as cmd}]
   (merge cmd {:train-opts (map->TrainOpts train-opts)
               :mutation-opts (map->MutationOpts mutation-opts)}))
-

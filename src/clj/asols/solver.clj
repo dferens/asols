@@ -8,7 +8,6 @@
             [asols.trainer :as trainer]
             [asols.mutations :as mutations]
             [asols.commands :as commands]
-            [asols.graphics :as graphics]
             [asols.data :as data]))
 
 (timbre/refer-timbre)
@@ -28,7 +27,7 @@
   (test-solving [this solving prev-net-value])
   (sort-cases [this cases]))
 
-(defrecord ClassificationSolver [dataset train-opts mutation-opts]
+(defrecord ClassificationSolver [train-opts mutation-opts]
   SolverProtocol
   (calc-net-value [_ net entries]
     (* 100 (trainer/calc-ca net entries)))
@@ -40,7 +39,7 @@
   (sort-cases [_ cases]
     (reverse (sort-by :test-value cases))))
 
-(defrecord RegressionSolver [dataset train-opts mutation-opts]
+(defrecord RegressionSolver [train-opts mutation-opts]
   SolverProtocol
   (calc-net-value [_ net entries]
     (trainer/calc-squares-error net entries))
@@ -52,16 +51,32 @@
   (sort-cases [_ cases]
     (sort-by :test-value cases)))
 
-(defn- create-solver
+(defn create-solver
   [t-opts m-opts]
-  (let [dataset (data/datasets (:dataset m-opts))]
-    (case (:mode m-opts)
-     ::commands/regression (->RegressionSolver dataset t-opts m-opts)
-     ::commands/classification (->ClassificationSolver dataset t-opts m-opts))))
+  (case (:mode m-opts)
+    ::commands/regression (->RegressionSolver t-opts m-opts)
+    ::commands/classification (->ClassificationSolver t-opts m-opts)))
+
+(defn get-dataset
+  [solver]
+  (get data/datasets (:dataset (:mutation-opts solver))))
+
+(defn train-with
+  [net solver]
+  (trainer/train net (get-dataset solver) (:train-opts solver)))
+
+(defn- make-solving
+  [solver net best-case other-cases ms-took]
+  (commands/->Solving net
+                      (:train-opts solver)
+                      (:mutation-opts solver)
+                      best-case
+                      other-cases
+                      ms-took))
 
 (defn create-start-net
-  [{:keys [dataset train-opts mutation-opts]}]
-  (let [{:keys [inputs-count outputs-count]} dataset
+  [{:keys [mutation-opts] :as solver}]
+  (let [{:keys [inputs-count outputs-count]} (get-dataset solver)
         hidden-type (:hidden-type mutation-opts)
         out-type (:out-type mutation-opts)
         node-adder (fn [net _]
@@ -71,7 +86,8 @@
     (-> (network/network inputs-count outputs-count out-type)
         (network/add-layer hidden-type)
         (nodes-adder)
-        (trainer/train dataset train-opts))))
+        (train-with solver)
+        (first))))
 
 (defn- get-mutations
   [{:keys [mutation-opts]} net]
@@ -87,13 +103,12 @@
 (defn solve-mutation
   [solver {net :network :as mutation}]
   (let [mode (:mode (:mutation-opts solver))
-        dataset (:dataset solver)
-        graph (graphics/render-network net)
-        trained-net (trainer/train net dataset (:train-opts solver))
+        dataset (get-dataset solver)
+        [trained-net cost] (train-with net solver)
         new-mutation (assoc mutation :network trained-net)
         train-value (calc-net-value solver trained-net (:train dataset))
         test-value (calc-net-value solver trained-net (:test dataset))]
-    (commands/->SolvingCase mode new-mutation train-value test-value graph)))
+    (commands/->SolvingCase mode new-mutation cost train-value test-value)))
 
 (defn pmap-cancelable
   "Like pmap"
@@ -125,7 +140,7 @@
                                        :value    (/ done (count mutations))}))))
     (let [[sorted-cases ms-took] (time-it (sort-cases solver cases))
           [[best-case] other-cases] (split-at 1 sorted-cases)]
-      (commands/->Solving best-case other-cases ms-took))))
+      (make-solving solver net best-case other-cases ms-took))))
 
 (defn solver-loop
   [solver out-chan abort-chan]
@@ -136,7 +151,7 @@
         (when (>! out-chan (commands/progress mutation value))
           (recur (<! progress-chan)))))
     (loop [current-net (create-start-net solver)
-           current-value (calc-net-value solver current-net (:test (:dataset solver)))]
+           current-value (calc-net-value solver current-net (:test (get-dataset solver)))]
       (let [solving-chan (go (solve-net solver current-net progress-chan loop-abort-chan))
             [solving ch] (alts!! [abort-chan solving-chan])]
         (if (= ch abort-chan)

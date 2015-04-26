@@ -1,26 +1,28 @@
 (ns asols.graphics
-  (:require [dorothy.core :as dot]
-            [asols.network :as network]))
+  (:require [dorothy.core :as dot]))
 
 (defn net->dot
-  [net]
-  (let [params [{:rankdir "LR"}]
-        graphs (map-indexed
-                 (fn [i layer]
-                   (let [layer-id (keyword (str "cluster_" i))
-                         [label color] (condp = layer
-                                         (:input-layer net) ["input layer" :red]
-                                         (:output-layer net) ["output layer" :blue]
-                                         ["hidden layers" :green])]
-                     (dot/subgraph layer-id
-                       [{:label label :color "white"}
-                        (dot/node-attrs {:style "solid" :shape "circle" :color color})
-                        (map vector (:nodes layer))])))
-                 (:layers net))
-        edges (for [[edge weight] (:edges net)]
-                edge #_(into edge [{:label (format "%.2f" weight)}]))]
-    (dot/dot (dot/digraph (concat params graphs edges)))))
+  [net & {:keys [show-weights?]
+          :or {show-weights? true}}]
+  (let [graph-params [{:rankdir "LR"}]
+        subgraphs (for [layer-i (range (count (:layers net)))]
+                    (let [layer (nth (:layers net) layer-i)
+                          [label color] (condp = layer
+                                          (first (:layers net)) ["input layer" :red]
+                                          (last (:layers net)) ["output layer" :blue]
+                                          ["hidden layer" :green])
+                          layer-id (keyword (str "cluster_" layer-i))]
+                      (dot/subgraph layer-id
+                                    [{:label label :color "white"}
+                                     (dot/node-attrs {:style "solid" :shape "circle" :color color})
+                                     (map vector (:nodes layer))])))
 
+        edges (for [[[node-from node-to] weight] (:edges net)]
+                [node-from node-to (when show-weights?
+                                     {:label (format "%.2f" weight)} )])]
+    (-> (concat graph-params subgraphs edges)
+        (dot/digraph)
+        (dot/dot))))
 
 (defn render-network
   "Render given network, return result as string"

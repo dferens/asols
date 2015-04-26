@@ -22,20 +22,25 @@
   "Computes deltas (errors) of output layer."
   (fn [layer out-vector target-vector] (:type layer)))
 
+(defmulti cost
+  "Computes cost"
+  (fn [layer out-vector target-vector] (:type layer)))
+
 
 (defn hidden-types
   "Returns all available hidden layers types"
   []
-  (let [forward-implementers (into #{} (keys (methods forward)))
-        derivative-implementers (into #{} (keys (methods derivative)))]
-    (set/intersection forward-implementers derivative-implementers)))
+  (let [forward-impl (into #{} (keys (methods forward)))
+        derivative-impl (into #{} (keys (methods derivative)))]
+    (set/intersection forward-impl derivative-impl)))
 
 (defn out-types
   "Returns all available output layers types"
   []
-  (let [forward-implementers (into #{} (keys (methods forward)))
-        out-deltas-implementers (into #{} (keys (methods out-deltas)))]
-    (set/intersection forward-implementers out-deltas-implementers)))
+  (let [forward-impl (into #{} (keys (methods forward)))
+        out-deltas-impl (into #{} (keys (methods out-deltas)))
+        cost-impl (into #{} (keys (methods cost)))]
+    (set/intersection forward-impl out-deltas-impl cost-impl)))
 
 ;; Linear layer
 
@@ -46,7 +51,7 @@
 (defmethod forward ::sigmoid
   [_ in-vec]
   (m/div 1
-    (m/add 1 (m/emap #(Math/exp %) (m/sub in-vec)))))
+         (m/add 1 (m/emap #(Math/exp %) (m/sub in-vec)))))
 
 (defmethod derivative ::sigmoid
   [_ out-x]
@@ -57,6 +62,11 @@
   (m/mul out-vec
          (m/sub 1 out-vec)
          (m/sub out-vec target-vec)))
+
+(defmethod cost ::sigmoid
+  [_ out-vec target-vec]
+  (/ (m/esum (m/square (m/sub target-vec out-vec)))
+     2))
 
 ;; ReLU hidden layer
 
@@ -80,6 +90,14 @@
 (defmethod out-deltas ::softmax
   [_ out-vector target-vector]
   (m/sub out-vector target-vector))
+
+(defmethod cost ::softmax
+  [_ out-vec target-vec]
+  (m/sub
+    (m/esum
+      (m/mul
+        (m/emap #(Math/log %) (m/add out-vec 1E-15))
+        target-vec))))
 
 
 ;; Backprop implementation
@@ -107,10 +125,11 @@
 (defn- backward-out-layer
   "Performs backward pass for output layer, returns map of nodes deltas"
   [layer forward-values target-vec]
-  (let [out-vec-seq (map forward-values (:nodes layer))
-        out-vec (m/array out-vec-seq)
+  (let [out-vec (m/array (map forward-values (:nodes layer)))
+        cost-val (cost layer out-vec target-vec)
         deltas-vector (out-deltas layer out-vec target-vec)]
-    (zipmap (:nodes layer) deltas-vector)))
+    [(zipmap (:nodes layer) deltas-vector)
+     cost-val]))
 
 (defn- backward-layer
   "Performs backward pass for hidden layer, returns map of nodes deltas"
@@ -129,56 +148,85 @@
   [net target-vec forward-values]
   (let [out-layer (last (:layers net))
         layers (reverse (network/hidden-layers net))
-        deltas-map (backward-out-layer out-layer forward-values target-vec)
+        [deltas-map cost-val] (backward-out-layer out-layer forward-values target-vec)
         layer-reducer #(backward-layer net forward-values %1 %2)]
-    (reduce layer-reducer deltas-map layers)))
+    [(reduce layer-reducer deltas-map layers)
+     cost-val]))
 
 (defn- backprop-delta-weights
-  "Performs forward & backward pass, returns map of delta weights of edges"
-  [net entry e-count train-opts prev-delta-weights]
+  "Performs forward & backward pass, returns map of delta weights of edges and cost"
+  [net entry e-count train-opts prev-delta-w]
   (let [{:keys [input-vec target-vec]} entry
         {:keys [learning-rate momentum l2-lambda]} train-opts
         forward-values (forward-pass net input-vec)
-        deltas-map (backward net target-vec forward-values)]
-    (into {} (for [[[node-from node-to :as e] weight] (:edges net)]
-               (let [delta-weight (+ (* -1 learning-rate
-                                        (deltas-map node-to)
-                                        (forward-values node-from))
-                                     (* momentum (get prev-delta-weights e 0))
-                                     (* -1 l2-lambda learning-rate weight (/ e-count)))]
-                 [e delta-weight])))))
+        [deltas-map cost-val] (backward net target-vec forward-values)
+        delta-w (into {} (for [[[node-from node-to :as e] weight] (:edges net)]
+                           (let [delta-w (+ (* -1 learning-rate
+                                               (deltas-map node-to)
+                                               (forward-values node-from))
+                                            (* momentum (get prev-delta-w e 0))
+                                            (* -1 l2-lambda learning-rate weight
+                                               (/ e-count)))]
+                             [e delta-w])))]
+    [delta-w deltas-map cost-val]))
 
 (defn- backprop-step
   "Performs forward & backward pass and tunes network weights.
   Returns new network and weights deltas being made."
-  [net entry entries-count train-opts prev-delta-weights]
-  (let [delta-weights (backprop-delta-weights net entry entries-count train-opts prev-delta-weights)
-        new-net (update-in net [:edges] #(merge-with + % delta-weights))]
-    [new-net delta-weights]))
+  [net entry entries-count t-opts prev-delta-w]
+  (let [[delta-w deltas cost-val] (backprop-delta-weights net entry entries-count t-opts prev-delta-w)
+        new-net (update-in net [:edges] #(merge-with + % delta-w))]
+    [new-net delta-w deltas cost-val]))
 
-(defn- train-entries
+(defn train-epoch
+  "Trains given network on a dataset for single epoch.
+  Returns vector:
+    [net          - trained network
+     cost-val     - average cost value
+     delta-w-coll - collection of delta weights for each dataset entry
+                    [{[:a :b] 0.1, ...}, {...}, ...]
+     deltas-coll] - collection of deltas (errors) of nodes for each entry
+                    [{:a 0.1, :b 0.2, ...}, {...}, ...]"
   [start-net entries t-opts]
   (let [e-count (count entries)]
-    (loop [net start-net
+    (loop [curr-net start-net
            entries-left entries
-           delta-w nil]
-     (if (empty? entries-left)
-       net
-       (let [entry (first entries-left)
-             [new-net new-delta-w] (backprop-step net entry e-count t-opts delta-w)]
-         (recur new-net (rest entries-left) new-delta-w))))))
+           delta-w-coll []
+           deltas-coll (transient [])
+           cost-accum 0]
+      (if (empty? entries-left)
+        [curr-net
+         (/ cost-accum e-count)
+         delta-w-coll
+         (persistent! deltas-coll)]
+        (let [entry (first entries-left)
+              last-delta-w (last delta-w-coll)
+              step-result (backprop-step curr-net entry e-count t-opts last-delta-w)
+              [new-net new-delta-w new-deltas cost-val] step-result]
+          (recur new-net
+                 (rest entries-left)
+                 (conj delta-w-coll new-delta-w)
+                 (conj! deltas-coll new-deltas)
+                 (+ cost-accum cost-val)))))))
 
 (defn train
-  "Trains given network on dataset with given opts, returns new net"
+  "Trains given network on a dataset during multiple epochs.
+  Returns trained net and average cost on train entries for last network."
   [start-net dataset t-opts]
   {:pre [(instance? Dataset dataset)
          (instance? TrainOpts t-opts)]}
   (let [entries (:train dataset)
         iter-count (:iter-count t-opts)]
-    (loop [net start-net i 0]
-      (if (< i iter-count)
-        (recur (train-entries net entries t-opts) (inc i))
-        net))))
+    (loop [net start-net
+           iter-i 0
+           curr-cost nil]
+      (if (< iter-i iter-count)
+        (let [train-result (train-epoch net entries t-opts)
+              [new-net new-cost _ _] train-result]
+          (recur new-net
+                 (inc iter-i)
+                 new-cost))
+        [net curr-cost]))))
 
 (defn activate
   "Returns output vector of after passing given input vector on net's inputs"
