@@ -25,6 +25,14 @@
                  (entry [0 1] [0 1])]]
     (->Dataset entries entries 2 2)))
 
+(defn class-vec
+  [class-num classes-count]
+  {:pre [(> class-num 0)
+         (<= class-num classes-count)]}
+  (map
+    #(if (= % class-num) 1.0 0.0)
+    (range 1 (inc classes-count))))
+
 (defn parse-monks-dataset
   "
   All monks datasets has next attributes:
@@ -47,10 +55,16 @@
             (let [parsed-line (map #(Integer/parseInt %) (butlast line))
                   class-label (first parsed-line)
                   out-vec (if (zero? class-label) [1 0] [0 1])
-                  in-vec (rest parsed-line)]
+                  [a1 a2 a3 a4 a5 a6] (rest parsed-line)
+                  in-vec (vec (concat (class-vec a1 3)
+                                      (class-vec a2 3)
+                                      (class-vec a3 2)
+                                      (class-vec a4 3)
+                                      (class-vec a5 4)
+                                      (class-vec a6 2)))]
               (entry in-vec out-vec))))
         [train test] (map (comp vec read-file) [train-file test-file])]
-    (->Dataset train test 6 2)))
+    (->Dataset train test 17 2)))
 
 (def ^:private monks1
   "Problem:
