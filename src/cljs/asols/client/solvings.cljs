@@ -5,7 +5,8 @@
             [cljs.core.async :refer [<! >! chan close!]]
             [chord.http :as http]
             [asols.client.utils :refer [format]]
-            [asols.network :as net])
+            [asols.network :as net]
+            [asols.client.utils :refer [debug]])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
 (defmulti mutation-view :operation)
@@ -66,12 +67,18 @@
        [:td (mutation-view (:mutation solving-case))]
        [:td (format-cost solving-case)]
        [:td (format-net-value solving-case (:train-value solving-case))]
-       [:td (format-net-value solving-case (:test-value solving-case))]])))
+       [:td (format-net-value solving-case (:test-value solving-case))]
+       [:td [:button.btn.btn-success.btn-xs
+             {:on-click #(do
+                          (let [serialized-net (pr-str (:network (:mutation solving-case)))]
+                            (.prompt js/window serialized-net)
+                            (debug serialized-net)))}
+             "Get network"]]])))
 
 (defn render-network
   [network]
   (go
-    (let [params {:query-params {"network" (pr-str network)}}
+    (let [params {:body network :req-format :edn}
           {:keys [body]} (<! (http/post "/render-network/" params))]
       body)))
 

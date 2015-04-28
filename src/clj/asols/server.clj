@@ -36,7 +36,7 @@
       (resp/header "Content-Type" "text/html; charset=utf-8")))
 
 (defn render-network-page [req]
-  (let [network-text (-> (:params req) (get "network"))
+  (let [network-text (slurp (:body req))
         network (edn/read-string {:readers readers} network-text)]
     (if network
       (-> (render-network network)
