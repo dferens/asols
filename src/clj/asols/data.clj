@@ -15,8 +15,10 @@
   (->Entry (array input-vec) (array target-vec)))
 
 (defn- read-dataset [file-name]
-  (let [full-path (io/file "resources" "datasets" file-name)]
-    (csv/read-csv (io/reader full-path) :separator \tab)))
+  (let [full-path (io/file "resources" "datasets" file-name)
+        reader (io/reader full-path)]
+    (->> (csv/read-csv reader :separator \tab)
+         (drop 3))))
 
 (def xor
   (let [entries [(entry [0 0] [1 0])
@@ -51,7 +53,7 @@
   [train-file test-file]
   (let [read-file
         (fn [path]
-          (for [line (drop 3 (read-dataset path))]
+          (for [line (read-dataset path)]
             (let [parsed-line (map #(Integer/parseInt %) (butlast line))
                   class-label (first parsed-line)
                   out-vec (if (zero? class-label) [1 0] [0 1])
@@ -82,7 +84,16 @@
     (5% class noise added to the training set)"
   (parse-monks-dataset "monks-3_learn.tab" "monks-3_test.tab"))
 
+(def ^:private twospirals
+  (let [entries (for [line (read-dataset "twospirals.tab")
+                      :let [[x y class] line]]
+                  (entry [(Double/parseDouble x)
+                          (Double/parseDouble y)]
+                         (class-vec (Integer/parseInt class) 2)))]
+    (->Dataset entries entries 2 2)))
+
 (def datasets
   {::monks1 monks1
    ::monks2 monks2
-   ::monks3 monks3})
+   ::monks3 monks3
+   ::twospirals twospirals})
