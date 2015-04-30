@@ -82,7 +82,7 @@
                           [node-a node-b])]
       (nil? (second edges-between))))
   (get-weight [_ edge]
-    (edges edge))
+    (get edges edge 0))
   (get-bias [_ node]
     (get biases node 0)))
 
