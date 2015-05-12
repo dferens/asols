@@ -53,7 +53,8 @@
   (with-channel
     req chord-chan
     {:format :edn #_:transit-json
-     :write-ch (chan 10)}
+     :write-ch (chan 10)
+     :read-ch (chan 10)}
     (debug "Client connected")
     (let [in-chan (chan)
           out-chan chord-chan]

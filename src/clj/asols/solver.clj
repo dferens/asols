@@ -11,9 +11,6 @@
 
 (timbre/refer-timbre)
 
-(def ^:private solving-cases-tpool
-  (cpool/threadpool (cpool/ncpus)))
-
 (defmacro time-it
   [expr]
   `(let [start# (System/nanoTime)
@@ -103,64 +100,49 @@
         test-value (calc-net-value solver trained-net (:test dataset))]
     (commands/->SolvingCase mode new-mutation cost train-value test-value)))
 
-(defn pmap-cancelable
-  "Like pmap"
-  [f & colls]
-  (let [state (atom {:done-count 0 :last-result nil :aborted? false})]
-    [(apply
-       (partial cpool/pmap solving-cases-tpool)
-       (fn [& args]
-         (if (:aborted? @state)
-           (debug "Detected abort")
-           (let [result (apply f args)]
-             (swap! state #(assoc % :done-count (inc (:done-count %))
-                                    :last-result result))
-             result)))
-       colls)
-     state]))
-
 (defn solve-net
-  [solver net progress-chan abort-chan]
-  (let [mutations (get-mutations solver net)
-        [cases state] (pmap-cancelable #(solve-mutation solver %) mutations)]
-    (go
-      (when (<! abort-chan)
-        (reset! state (assoc @state :aborted? true))))
-    (add-watch state :progress
-               (fn [_ _ _ {aborted? :aborted? last-case :last-result done :done-count}]
-                 (when-not aborted?
-                   (>!! progress-chan {:mutation (:mutation last-case)
-                                       :value    (/ done (count mutations))}))))
-    (let [[sorted-cases ms-took] (time-it (sort-cases solver cases))
-          [[best-case] other-cases] (split-at 1 sorted-cases)]
-      (make-solving solver net best-case other-cases ms-took))))
+  [solver net progress-chan tpool]
+  (try
+    (let [mutations (get-mutations solver net)
+          solve-fn (fn [[i mutation]]
+                     (let [result (solve-mutation solver mutation)]
+                       (go (>! progress-chan {:mutation mutation
+                                              :value    (/ (inc i)
+                                                           (count mutations))}))
+                       result))
+          cases (cpool/pmap tpool solve-fn (map-indexed vector mutations))]
+      (let [[sorted-cases ms-took] (time-it (sort-cases solver cases))
+            [[best-case] other-cases] (split-at 1 sorted-cases)]
+        (make-solving solver net best-case other-cases ms-took)))
+    (catch InterruptedException _
+      (debug "Detected thread interrupt"))))
 
 (defn solver-loop
   [solver out-chan abort-chan]
   (let [progress-chan (chan 20)
-        loop-abort-chan (chan)]
+        entries (:test (get-dataset solver))]
     (go-loop [{:keys [mutation value]} (<! progress-chan)]
       (when-not (nil? value)
         (when (>! out-chan (commands/progress mutation value))
           (recur (<! progress-chan)))))
-    (loop [current-net (create-start-net solver)
-           current-value (calc-net-value solver current-net (:test (get-dataset solver)))]
-      (let [solving-chan (go (solve-net solver current-net progress-chan loop-abort-chan))
-            [solving ch] (alts!! [abort-chan solving-chan])]
-        (if (= ch abort-chan)
-          (>!! loop-abort-chan true)
-          (let [[better? best?] (test-solving solver solving current-value)]
-            (if better?
-              (do
-                (>!! out-chan (commands/step solving))
-                (debug "Sent step")
-                (if best?
-                  (when (>!! out-chan (commands/finished))
-                    (debug "Finished, found best solution"))
-                  (recur (:network (:mutation (:best-case solving)))
-                         (:test-value (:best-case solving)))))
-              (when (>!! out-chan (commands/finished solving))
-                (debug "Finished, could not find better solution")))))))))
+    (cpool/with-shutdown! [tpool (cpool/threadpool (cpool/ncpus))]
+      (loop [current-net (create-start-net solver)
+            current-value (calc-net-value solver current-net entries)]
+        (let [solving-chan (go (solve-net solver current-net progress-chan tpool))
+              [solving ch] (alts!! [abort-chan solving-chan])]
+          (when (not= ch abort-chan)
+            (let [[better? best?] (test-solving solver solving current-value)]
+              (if better?
+                (do
+                  (>!! out-chan (commands/step solving))
+                  (debug "Sent step")
+                  (if best?
+                    (when (>!! out-chan (commands/finished))
+                      (debug "Finished, found best solution"))
+                    (recur (:network (:mutation (:best-case solving)))
+                           (:test-value (:best-case solving)))))
+                (when (>!! out-chan (commands/finished solving))
+                  (debug "Finished, could not find better solution"))))))))))
 
 (defn init [in-chan out-chan]
   (let [abort-chan (chan)
