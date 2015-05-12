@@ -34,7 +34,6 @@
     (let [curr-value (:test-value (:best-case solving))
           better? (>= curr-value prev-net-value)
           best? (= curr-value 100.0)]
-      (when-not better? (debug curr-value) (debug prev-net-value))
       [better? best?]))
   (sort-cases [_ cases]
     (reverse (sort-by :test-value cases))))
@@ -77,17 +76,10 @@
 (defn create-start-net
   [{:keys [mutation-opts] :as solver}]
   (let [{:keys [inputs-count outputs-count]} (get-dataset solver)
-        hidden-type (:hidden-type mutation-opts)
-        out-type (:out-type mutation-opts)
-        node-adder (fn [net _]
-                     (let [[new-net node] (network/add-node net 1)]
-                       (network/full-connect new-net 1 node)))
-        nodes-adder #(reduce node-adder % (range (:hidden-count mutation-opts)))]
+        {:keys [hidden-type out-type hidden-count]} mutation-opts]
     (-> (network/network inputs-count outputs-count out-type)
-        (network/add-layer hidden-type)
-        (nodes-adder)
-        (train-with solver)
-        (first))))
+        (network/insert-layer 1 hidden-type hidden-count)
+        (train-with solver))))
 
 (defn- get-mutations
   [{:keys [mutation-opts]} net]
@@ -104,7 +96,8 @@
   [solver {net :network :as mutation}]
   (let [mode (:mode (:mutation-opts solver))
         dataset (get-dataset solver)
-        [trained-net cost] (train-with net solver)
+        trained-net (train-with net solver)
+        cost (trainer/calc-cost trained-net (:train dataset))
         new-mutation (assoc mutation :network trained-net)
         train-value (calc-net-value solver trained-net (:train dataset))
         test-value (calc-net-value solver trained-net (:test dataset))]

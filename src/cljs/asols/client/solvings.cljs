@@ -5,7 +5,6 @@
             [cljs.core.async :refer [<! >! chan close!]]
             [chord.http :as http]
             [asols.client.utils :refer [format]]
-            [asols.network :as net]
             [asols.client.utils :refer [debug]])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
@@ -25,7 +24,7 @@
 
 (defmethod mutation-view :asols.mutations/del-neuron [m]
   [:span "removed node "
-   [:span.label.label-primary (name (:deleted-neuron m))]])
+   [:span.label.label-primary (:deleted-neuron m)]])
 
 (defmethod mutation-view :asols.mutations/del-edge [m]
   (let [[node-from node-to] (:deleted-edge m)]
@@ -96,7 +95,7 @@
                (let [case (if (= selected-case-num :none)
                             (:best-case solving)
                             (nth (:cases solving) selected-case-num))
-                     network (net/map->Network (:network (:mutation case)))]
+                     network (:network (:mutation case))]
                  (om/set-state! owner :graph (<! (render-network network)))
                  (recur (<! hover-chan))))))
 

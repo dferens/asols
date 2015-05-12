@@ -7,7 +7,6 @@
             [cljs.core.async :refer [<! >! chan close!]]
             [figwheel.client :as fw]
             [asols.commands :as cmd]
-            [asols.network :as net]
             [asols.client.settings :refer [settings-panel]]
             [asols.client.solvings :refer [solvings-panel mutation-view failed-solving-panel]]
             [asols.client.stats :refer [stats-panel]]
@@ -16,8 +15,6 @@
 
 (enable-console-print!)
 
-(cljs.reader/register-tag-parser! 'asols.network.Network net/map->Network)
-(cljs.reader/register-tag-parser! 'asols.network.Layer net/map->Layer)
 (cljs.reader/register-tag-parser! 'asols.commands.Solving cmd/map->Solving)
 (cljs.reader/register-tag-parser! 'asols.commands.SolvingCase cmd/map->SolvingCase)
 (cljs.reader/register-tag-parser! 'asols.commands.TrainOpts cmd/map->TrainOpts)

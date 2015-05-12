@@ -1,4 +1,6 @@
-(ns asols.commands)
+(ns asols.commands
+  (:require #+clj [clojure.core.matrix :as m]
+            #+clj [asols.network :as net]))
 
 
 (def ^:private commands
@@ -35,15 +37,29 @@
 (defn progress
   [mutation value]
   {:pre [(<= 0 value 1)]}
-  {:command ::progress
-   :mutation mutation
-   :value (double value)})
+  {:command  ::progress
+   :mutation (update-in mutation [:network] net/serialize)
+   :value    (double value)})
+
+#+clj
+(defn- serialize-case
+  [solving-case]
+  (update-in solving-case [:mutation :network] net/serialize))
+
+#+clj
+(defn- serialize-solving
+  [solving]
+  (-> solving
+      (update-in [:initial-net] net/serialize)
+      (update-in [:best-case] serialize-case)
+      (update-in [:cases] #(map serialize-case %))))
 
 #+clj
 (defn step
   [solving]
   {:pre [(instance? Solving solving)]}
-  {:command ::step :solving solving})
+  {:command ::step
+   :solving (serialize-solving solving)})
 
 #+clj
 (defn finished
@@ -53,7 +69,7 @@
   ([failed-solving]
    {:pre [(instance? Solving failed-solving)]}
    {:command ::finished
-    :solving failed-solving}))
+    :solving (serialize-solving failed-solving)}))
 
 #+cljs
 (defn start

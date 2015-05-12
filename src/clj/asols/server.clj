@@ -14,7 +14,6 @@
             [ring.middleware.not-modified :refer [wrap-not-modified]]
             [taoensso.timbre :as timbre]
             [asols.solver :as solver]
-            [asols.network :as net]
             [asols.graphics :refer [render-network]]
             [asols.commands :as cmd]
             [asols.analyzer :refer [analyze]]
@@ -23,9 +22,7 @@
 (timbre/refer-timbre)
 
 (def ^:private readers
-  {'asols.network.Network net/map->Network
-   'asols.network.Layer net/map->Layer
-   'asols.commands.Solving cmd/map->Solving
+  {'asols.commands.Solving cmd/map->Solving
    'asols.commands.SolvingCase cmd/map->SolvingCase
    'asols.commands.TrainOpts cmd/map->TrainOpts
    'asols.commands.MutationOpts cmd/map->MutationOpts})
