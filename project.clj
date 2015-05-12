@@ -37,7 +37,10 @@
                              [lein-pdo "0.1.1"]
                              [com.keminglabs/cljx "0.6.0"]
                              [com.jakemccrary/lein-test-refresh "0.8.0"]]
-                   :dependencies [[javax.servlet/servlet-api "2.5"]]}
+                   :dependencies [[javax.servlet/servlet-api "2.5"]
+                                  [pjstadig/humane-test-output "0.7.0"]]
+                   :injections [(require 'pjstadig.humane-test-output)
+                                (pjstadig.humane-test-output/activate!)]}
              :uberjar {:aot :all}}
 
   :aliases {"dev" ["pdo" ["cljx" "auto"]
