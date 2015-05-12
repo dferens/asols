@@ -29,7 +29,7 @@
      (for [node-i (range nodes-count)]
        [(node->name layer-i node-i)])]))
 
-(defn net->dot
+(defn- net->dot*
   [{:keys [layers] :as net}]
   (let [graph-opts [def-graph-opts]
         layers-count (inc (count layers))
@@ -58,6 +58,15 @@
     (-> (concat graph-opts subgraphs (apply concat edges))
         (dot/digraph)
         (dot/dot))))
+
+(defn net->dot
+  [{:keys [layers] :as net}]
+  (let [in-counts (for [layer layers]
+                    (first (network/get-layer-shape layer)))
+        should-render? (< (apply max in-counts) 10)]
+    (if should-render?
+      (net->dot* net)
+      "")))
 
 (defn render-network
   "Render given network, return result as string"
