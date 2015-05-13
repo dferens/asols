@@ -101,15 +101,16 @@
 (defn forward-pass
   "Performs forward pass, returns vector of vectors of layers outputs"
   [{:keys [layers]} in-vec]
-  (loop [out-vectors [in-vec]
-         layers-left layers]
-    (if (empty? layers-left)
-      out-vectors
-      (let [{:keys [edges-matrix] :as layer} (first layers-left)
-            weighted-sums (m/mmul (last out-vectors) edges-matrix)
-            out-vec (forward layer weighted-sums)]
-        (recur (conj out-vectors out-vec)
-               (rest layers-left))))))
+  (let [layers-count (count layers)]
+    (loop [out-vectors [in-vec]
+           layer-i 0]
+      (if (>= layer-i layers-count)
+        out-vectors
+        (let [{:keys [edges-matrix] :as layer} (nth layers layer-i)
+              weighted-sums (m/mmul (last out-vectors) edges-matrix)
+              out-vec (forward layer weighted-sums)]
+          (recur (conj out-vectors out-vec)
+                 (+ 1 layer-i)))))))
 
 (defn activate
   "Returns network output vector on given input vector."
@@ -127,24 +128,20 @@
   [{:keys [layers]} target-vec forward-vecs]
   (let [out-vec (last forward-vecs)
         deltas-vec (out-deltas (last layers) out-vec target-vec)]
-    (loop [layers-left (reverse (butlast layers))
-           next-layers-left (reverse layers)
-           deltas-vecs [deltas-vec]
-           forward-vecs (drop 1 (reverse forward-vecs))]
-      (if (empty? layers-left)
+    (loop [layer-i (- (count layers) 2)
+           deltas-vecs [deltas-vec]]
+      (if (< layer-i 0)
         (reverse deltas-vecs)
-        (let [layer (first layers-left)
-              next-layer (first next-layers-left)
-              layer-out (first forward-vecs)
+        (let [layer (nth layers layer-i)
+              next-layer (nth layers (+ layer-i 1))
+              layer-out (nth forward-vecs (+ layer-i 1))
               next-layer-deltas-vec (vec->matrix (last deltas-vecs))
               deltas-vec (m/mul!
                            (derivative layer layer-out)
                            (first (m/mmul next-layer-deltas-vec
                                           (m/transpose (:edges-matrix next-layer)))))]
-          (recur (rest layers-left)
-                 (rest next-layers-left)
-                 (conj deltas-vecs deltas-vec)
-                 (rest forward-vecs)))))))
+          (recur (- layer-i 1)
+                 (conj deltas-vecs deltas-vec)))))))
 
 (defn backprop-delta-layer-weights
   "Calculates weights deltas of given layer, returns matrix of same
@@ -195,6 +192,7 @@
        deltas-vecs
        forward-vecs
        prev-delta-w)
+
      (map
        #(backprop-delta-layer-biases t-opts %1)
        deltas-vecs)]))
@@ -235,15 +233,15 @@
   [start-net entries t-opts]
   (let [e-count (count entries)]
     (loop [curr-net start-net
-           entries-left entries
+           entry-i 0
            curr-delta-w (get-initial-delta-w curr-net)]
-      (if (empty? entries-left)
+      (if (>= entry-i e-count)
         curr-net
-        (let [entry (first entries-left)
+        (let [entry (nth entries entry-i)
               step-result (backprop-step curr-net entry e-count t-opts curr-delta-w)
               [new-net new-delta-w] step-result]
           (recur new-net
-                 (rest entries-left)
+                 (inc entry-i)
                  new-delta-w))))))
 
 (defn train
