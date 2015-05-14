@@ -41,7 +41,7 @@
   (format "%.3f" val))
 (defmethod format-net-value :asols.commands/classification
   [_ val]
-  (format "%.2f %%" val))
+  (format "%.2f %%" (* 100 (- 1.0 val))))
 
 (defn format-cost
   [solving-case]

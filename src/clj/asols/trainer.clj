@@ -247,11 +247,10 @@
 (defn train
   "Trains given network on a dataset during multiple epochs,
   returns new net."
-  [start-net dataset t-opts]
-  {:pre [(instance? Dataset dataset)
+  [start-net entries t-opts]
+  {:pre [(not (empty? entries))
          (instance? TrainOpts t-opts)]}
-  (let [entries (:train dataset)
-        iter-count (:iter-count t-opts)]
+  (let [iter-count (:iter-count t-opts)]
     (loop [net start-net
            iter-i 0]
       (if (< iter-i iter-count)
