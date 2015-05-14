@@ -92,8 +92,70 @@
                          (class-vec (Integer/parseInt class) 2)))]
     (->Dataset entries entries 2 2)))
 
+
+(defn- random-split
+  "(random-split [0 1 2 3 4 5] 1/5) -> [[0][1 2 3 4 5]"
+  [coll proportion]
+  (let [index (Math/floor (* proportion (count coll)))]
+    (split-at index (shuffle coll))))
+
+(defn- parse-fer2013-dataset
+  "Facial Expression Recognition Challenge
+
+  The data consists of 48x48 pixel grayscale images of faces. The faces have
+  been automatically registered so that the face is more or less centered and
+  occupies about the same amount of space in each image.
+
+  Input vector:
+    48 * 48 vector of [0 255] doubles
+
+  Output vector:
+    1. emotion, one of:
+      0 - Angry
+      1 - Disgust
+      2 - Fear
+      3 - Happy
+      4 - Sad
+      5 - Surprise
+      6 - Neutral
+  "
+  []
+  (let [file-path (io/file "resources" "datasets" "fer2013.csv")
+        reader (io/reader file-path)
+        lines (for [[emotion-str pixels set-name] (rest (csv/read-csv reader))]
+                [(Integer/parseInt emotion-str)
+                 (map #(double
+                        (/ (Integer/parseInt %)
+                           255))
+                      (str/split pixels #" "))
+                 (case set-name
+                   "Training" :train
+                   "PublicTest" :test)])
+        line->entry (fn [[emotion pixels _]]
+                      (entry (array pixels) (class-vec emotion 7 0)))
+        train-entries (->> lines
+                           (filter (fn [[_ _ set]] (= set :train)))
+                           (take 5000)
+                           (map line->entry))
+        test-entries (->> lines
+                          (filter (fn [[_ _ set]] (= set :test)))
+                          (take 100)
+                          (map line->entry))]
+    (->Dataset (vec train-entries) (vec test-entries) (* 48 48) 7)))
+
+(defn parse-yale-dataset
+  [dataset-file]
+  (let [entries (for [line (read-dataset dataset-file)
+                      :let [pixels (map #(Double/parseDouble %) (butlast line))
+                            target-class (Integer/parseInt (last line))]]
+                  (entry (array pixels) (class-vec target-class 5 1)))
+        [train-entries test-entries] (random-split entries 0.6)]
+    (->Dataset train-entries test-entries (* 26 26) 5)))
+
 (def datasets
-  {::monks1 monks1
-   ::monks2 monks2
-   ::monks3 monks3
-   ::twospirals twospirals})
+  {::monks1     monks1
+   ::monks2     monks2
+   ::monks3     monks3
+   ::twospirals twospirals
+   ::yale       (parse-yale-dataset "yale.tab")})
+

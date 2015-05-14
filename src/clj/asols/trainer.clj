@@ -302,6 +302,6 @@
   "Calculates classification accuracy on given collection of dataset entries"
   [net entries]
   {:pre [(not (empty? entries))]}
-  (/ (m/esum (m/array (for [e entries]
-                        (calc-ca-entry net e))))
+  (/ (sum (m/array (map #(calc-ca-entry net %) entries)))
      (count entries)))
+
