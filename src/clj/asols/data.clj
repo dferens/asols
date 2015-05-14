@@ -1,6 +1,7 @@
 (ns asols.data
   (:require [clojure.java.io :as io]
             [clojure.data.csv :as csv]
+            [clojure.string :as str]
             [clojure.core.matrix :as matrix :refer [array]]))
 
 (matrix/set-current-implementation :vectorz)
@@ -20,22 +21,16 @@
     (->> (csv/read-csv reader :separator \tab)
          (drop 3))))
 
-(def xor
-  (let [entries [(entry [0 0] [1 0])
-                 (entry [1 1] [1 0])
-                 (entry [1 0] [0 1])
-                 (entry [0 1] [0 1])]]
-    (->Dataset entries entries 2 2)))
+(defn- class-vec
+  ([class-num classes-count]
+    (class-vec class-num classes-count 1))
+  ([class-num classes-count start]
+   (for [i (range start (+ classes-count start))]
+     (if (= i class-num)
+       1.0
+       0.0))))
 
-(defn class-vec
-  [class-num classes-count]
-  {:pre [(> class-num 0)
-         (<= class-num classes-count)]}
-  (map
-    #(if (= % class-num) 1.0 0.0)
-    (range 1 (inc classes-count))))
-
-(defn parse-monks-dataset
+(defn- parse-monks-dataset
   "
   All monks datasets has next attributes:
 

@@ -4,8 +4,8 @@
 
 (def operations
   #{::identity
-    ::add-neuron ::del-neuron
-    ::add-edge   ::del-edge
+    ::add-node ::del-node
+    ::add-edge ::del-edge
     ::add-layer})
 
 (defn- node-name
@@ -17,16 +17,16 @@
   [{:operation ::identity
     :network net}])
 
-(defn add-neurons-mutations
+(defn add-node-mutations
   "Return mutations for adding new neurons to existing hidden layers.
   Each new neuron will be fully connected to prev & next layers."
   [net]
   (for [[i layer] (map-indexed vector (butlast (:layers net)))
         :let [layer-i (inc i)
               [_ out-count] (network/get-layer-shape layer)]]
-    {:operation    ::add-neuron
-     :network      (network/add-node net layer-i)
-     :added-neuron (format "%d[%d]" layer-i out-count)}))
+    {:operation  ::add-node
+     :network    (network/add-node net layer-i)
+     :added-node (node-name layer-i out-count)}))
 
 (defn- add-layer-edges-mutations
   [net [layer-i layer]]
@@ -39,22 +39,22 @@
        :added-edge [(node-name layer-i node-from)
                     (node-name (inc layer-i) node-to)]})))
 
-(defn add-edges-mutations
+(defn add-edge-mutations
   "Return mutations for adding all missing edges"
   [net]
   (mapcat
     #(add-layer-edges-mutations net %)
     (map-indexed vector (:layers net))))
 
-(defn remove-neurons-mutations
+(defn del-node-mutations
   [net]
   (for [[i {:keys [edges-matrix]}] (map-indexed vector (butlast (:layers net)))
         node-i (range (m/dimension-count edges-matrix 1))]
-    {:operation ::del-neuron
-     :network (network/del-node net (inc i) node-i)
-     :deleted-neuron (node-name (inc i) node-i)}))
+    {:operation    ::del-node
+     :network      (network/del-node net (inc i) node-i)
+     :deleted-node (node-name (inc i) node-i)}))
 
-(defn- remove-layer-edges-mutations
+(defn- del-layer-edges-mutations
   [net [layer-i layer]]
   (let [[in-count out-count] (network/get-layer-shape layer)]
     (for [node-from (range in-count)
@@ -65,11 +65,11 @@
        :deleted-edge [(node-name layer-i node-from)
                       (node-name (inc layer-i) node-to)]})))
 
-(defn remove-edges-mutations
+(defn del-edge-mutations
   "Return mutations for deletion of all net edges"
   [net]
   (mapcat
-    #(remove-layer-edges-mutations net %)
+    #(del-layer-edges-mutations net %)
     (map-indexed vector (:layers net))))
 
 (defn add-layers-mutations

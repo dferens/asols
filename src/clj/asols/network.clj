@@ -171,7 +171,8 @@
 
 (defn set-layer-edges
   [net layer-i edges-matrix]
-  {:pre [(pos? layer-i)]}
+  {:pre [(pos? layer-i)
+         (<= layer-i (count (:layers net)))]}
   (assoc-in net [:layers (dec layer-i) :edges-matrix] edges-matrix))
 
 (defn- set-edge

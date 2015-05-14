@@ -83,10 +83,10 @@
   (let [{:keys [remove-nodes? remove-edges? add-layers?]} mutation-opts]
     (concat
       (mutations/identity-mutations net)
-      (mutations/add-edges-mutations net)
-      (mutations/add-neurons-mutations net)
-      (when remove-nodes? (mutations/remove-neurons-mutations net))
-      (when remove-edges? (mutations/remove-edges-mutations net))
+      (mutations/add-edge-mutations net)
+      (mutations/add-node-mutations net)
+      (when remove-nodes? (mutations/del-node-mutations net))
+      (when remove-edges? (mutations/del-edge-mutations net))
       (when add-layers? (mutations/add-layers-mutations net)))))
 
 (defn solve-mutation

@@ -13,18 +13,18 @@
 (defmethod mutation-view :asols.mutations/identity [_]
   [:span "nothing"])
 
-(defmethod mutation-view :asols.mutations/add-neuron [m]
+(defmethod mutation-view :asols.mutations/add-node [m]
   [:span "added node "
-   [:span.label.label-primary (name (:added-neuron m))]])
+   [:span.label.label-primary (name (:added-node m))]])
 
 (defmethod mutation-view :asols.mutations/add-edge [m]
   (let [[node-from node-to] (:added-edge m)]
     [:span "added edge "
      [:span.label.label-success (format "%s -> %s" node-from node-to)]]))
 
-(defmethod mutation-view :asols.mutations/del-neuron [m]
+(defmethod mutation-view :asols.mutations/del-node [m]
   [:span "removed node "
-   [:span.label.label-primary (:deleted-neuron m)]])
+   [:span.label.label-primary (:deleted-node m)]])
 
 (defmethod mutation-view :asols.mutations/del-edge [m]
   (let [[node-from node-to] (:deleted-edge m)]
