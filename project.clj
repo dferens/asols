@@ -20,6 +20,7 @@
                  [prismatic/om-tools "0.3.11"]
                  [ring/ring-core "1.3.2"]
                  [ring/ring-devel "1.3.2"]
+                 [ring/ring-jetty-adapter "1.4.0-beta2"]
                  [sablono "0.3.4"]]
 
   :bower-dependencies [[flat-ui "2.2.2"]
@@ -29,6 +30,7 @@
   :main ^:skip-aot asols.core
   :target-path "target/%s"
   :source-paths ["target/generated/src/clj" "src/clj"]
+  :prep-tasks [["cljx" "once"] "javac" "compile"]
 
   :profiles {:dev {:plugins [[lein-cljsbuild "1.0.4"]
                              [lein-haml-sass "0.2.7-SNAPSHOT"]
@@ -37,8 +39,7 @@
                              [lein-pdo "0.1.1"]
                              [com.keminglabs/cljx "0.6.0"]
                              [com.jakemccrary/lein-test-refresh "0.8.0"]]
-                   :dependencies [[javax.servlet/servlet-api "2.5"]
-                                  [pjstadig/humane-test-output "0.7.0"]]
+                   :dependencies [[pjstadig/humane-test-output "0.7.0"]]
                    :injections [(require 'pjstadig.humane-test-output)
                                 (pjstadig.humane-test-output/activate!)]}
              :uberjar {:aot :all}}
