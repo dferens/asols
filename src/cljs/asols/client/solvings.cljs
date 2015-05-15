@@ -8,6 +8,14 @@
             [asols.client.utils :refer [debug]])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
+(defn- node->str
+  [[layer-i node-i]]
+  (format "%d[%d]" layer-i node-i))
+
+(defn- edge->str
+  [[node-from node-to]]
+  (format "%s -> %s" (node->str node-from) (node->str node-to)))
+
 (defmulti mutation-view :operation)
 
 (defmethod mutation-view :asols.mutations/identity [_]
@@ -15,24 +23,24 @@
 
 (defmethod mutation-view :asols.mutations/add-node [m]
   [:span "added node "
-   [:span.label.label-primary (name (:added-node m))]])
+   [:span.label.label-primary (node->str (:added-node m))]])
 
 (defmethod mutation-view :asols.mutations/add-edge [m]
-  (let [[node-from node-to] (:added-edge m)]
+  (let [title (edge->str (:added-edge m))]
     [:span "added edge "
-     [:span.label.label-success (format "%s -> %s" node-from node-to)]]))
+     [:span.label.label-success title]]))
 
 (defmethod mutation-view :asols.mutations/del-node [m]
   [:span "removed node "
-   [:span.label.label-primary (:deleted-node m)]])
+   [:span.label.label-primary (node->str (:deleted-node m))]])
 
 (defmethod mutation-view :asols.mutations/del-edge [m]
-  (let [[node-from node-to] (:deleted-edge m)]
+  (let [title (edge->str (:deleted-edge m))]
     [:span "removed edge "
-     [:span.label.label-success (format "%s -> %s" node-from node-to)]]))
+     [:span.label.label-success title]]))
 
 (defmethod mutation-view :asols.mutations/add-layer [m]
-  [:span (format "added hidden layer at %s " (:layer-index m))
+  [:span (format "added hidden layer at %s " (:layer-pos m))
    [:span.label.label-info (name (:layer-type m))]])
 
 (defmulti format-net-value (fn [solver & _] (:mode solver)))
@@ -69,7 +77,7 @@
        [:td (format-net-value solving-case (:test-value solving-case))]
        [:td [:button.btn.btn-success.btn-xs
              {:on-click #(do
-                          (let [serialized-net (pr-str (:network (:mutation solving-case)))]
+                          (let [serialized-net (pr-str (:network solving-case))]
                             (.prompt js/window serialized-net)
                             (debug serialized-net)))}
              "Get network"]]])))
@@ -95,7 +103,7 @@
                (let [case (if (= selected-case-num :none)
                             (:best-case solving)
                             (nth (:cases solving) selected-case-num))
-                     network (:network (:mutation case))]
+                     network (:net case)]
                  (om/set-state! owner :graph (<! (render-network network)))
                  (recur (<! hover-chan))))))
 

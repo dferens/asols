@@ -16,7 +16,7 @@
                          out-type
                          remove-edges? remove-nodes? add-layers?])
 
-(defrecord SolvingCase [mode mutation cost train-value test-value])
+(defrecord SolvingCase [mode net mutation cost train-value test-value])
 
 (defrecord Solving [initial-net train-opts mutation-opts best-case cases ms-took])
 
@@ -38,13 +38,13 @@
   [mutation value]
   {:pre [(<= 0 value 1)]}
   {:command  ::progress
-   :mutation (update-in mutation [:network] net/serialize)
+   :mutation mutation
    :value    (double value)})
 
 #+clj
 (defn- serialize-case
   [solving-case]
-  (update-in solving-case [:mutation :network] net/serialize))
+  (update-in solving-case [:net] net/serialize))
 
 #+clj
 (defn- serialize-solving
