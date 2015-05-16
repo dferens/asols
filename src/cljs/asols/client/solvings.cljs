@@ -93,21 +93,18 @@
                               :or {visible? false}} owner]
   (init-state [_]
     {:visible? visible?
-     :hover-chan (chan)
-     :graph nil})
+     :hover-chan (chan)})
 
   (will-mount [_]
     (let [hover-chan (om/get-state owner :hover-chan)]
       (go (>! hover-chan :none))
-      (go-loop [selected-case-num (<! hover-chan)]
-               (let [case (if (= selected-case-num :none)
+      (go-loop [case-num (<! hover-chan)]
+               (let [case (if (= case-num :none)
                             (:best-case solving)
-                            (nth (:cases solving) selected-case-num))
-                     network (:net case)]
-                 (om/set-state! owner :graph (<! (render-network network)))
+                            (nth (:cases solving) case-num))]
                  (recur (<! hover-chan))))))
 
-  (render-state [_ {:keys [visible? graph hover-chan]}]
+  (render-state [_ {:keys [visible? hover-chan]}]
     (html
       (let [{:keys [cases best-case ms-took]} solving]
         [:li.list-group-item.solving
@@ -125,9 +122,7 @@
            [:span.label.label-default.pull-right
             (format-time ms-took)]]]
          [:.row {:class (when-not visible? "hidden")}
-          [:.col-xs-5
-           {:dangerouslySetInnerHTML {:__html graph}}]
-          [:.col-xs-7
+          [:.col-xs-12
            [:table.table.table-condensed.table-hover
             [:thead
              [:tr

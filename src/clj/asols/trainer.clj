@@ -6,7 +6,7 @@
             [asols.commands]
             [asols.network :as net])
   (:import (asols.commands TrainOpts)
-           (asols.data Entry Dataset)))
+           (asols.data Entry)))
 
 (m/set-current-implementation :vectorz)
 
@@ -250,13 +250,12 @@
   [start-net entries t-opts]
   {:pre [(not (empty? entries))
          (instance? TrainOpts t-opts)]}
-  (let [iter-count (:iter-count t-opts)]
-    (loop [net start-net
-           iter-i 0]
-      (if (< iter-i iter-count)
-        (let [new-net (train-epoch net entries t-opts)]
-          (recur new-net (inc iter-i)))
-        net))))
+  (loop [net start-net
+         iter-i 0]
+    (if (< iter-i (:iter-count t-opts))
+      (let [new-net (train-epoch net entries t-opts)]
+        (recur new-net (inc iter-i)))
+      net)))
 
 (defn- calc-distance-error-entry
   "Calculates error on single dataset entry for given network"

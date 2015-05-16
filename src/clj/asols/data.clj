@@ -88,7 +88,7 @@
     (->Dataset entries entries 2 2)))
 
 
-(defn- random-split
+(defn random-split
   "(random-split [0 1 2 3 4 5] 1/5) -> [[0][1 2 3 4 5]"
   [coll proportion]
   (let [index (Math/floor (* proportion (count coll)))]

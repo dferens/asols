@@ -1,6 +1,4 @@
-(ns asols.commands
-  (:require #+clj [clojure.core.matrix :as m]
-            #+clj [asols.network :as net]))
+(ns asols.commands)
 
 
 (def ^:private commands
@@ -43,16 +41,19 @@
 
 #+clj
 (defn- serialize-case
-  [solving-case]
-  (update-in solving-case [:net] net/serialize))
+  [{:keys [mode mutation cost train-value test-value]}]
+  {:mode mode
+   :mutation mutation
+   :cost cost
+   :train-value train-value
+   :test-value test-value})
 
 #+clj
 (defn- serialize-solving
-  [solving]
-  (-> solving
-      (update-in [:initial-net] net/serialize)
-      (update-in [:best-case] serialize-case)
-      (update-in [:cases] #(map serialize-case %))))
+  [{:keys [best-case cases ms-took]}]
+  {:best-case (serialize-case best-case)
+   :cases (map serialize-case cases)
+   :ms-took ms-took})
 
 #+clj
 (defn step
