@@ -30,7 +30,7 @@
   :main ^:skip-aot asols.core
   :target-path "target/%s"
   :source-paths ["target/generated/src/clj" "src/clj"]
-  :prep-tasks [["cljx" "once"] "javac" "compile"]
+  :prep-tasks [["cljx" "once"] ["sass" "once"] "javac" "compile"]
 
   :profiles {:dev {:plugins [[lein-cljsbuild "1.0.4"]
                              [lein-haml-sass "0.2.7-SNAPSHOT"]
