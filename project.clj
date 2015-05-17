@@ -30,10 +30,7 @@
   :main ^:skip-aot asols.core
   :target-path "target/%s"
   :source-paths ["target/generated/src/clj" "src/clj"]
-  :prep-tasks [["cljx" "once"]
-               ["sass" "once"]
-               ["cljsbuild" "once"]
-               "javac" "compile"]
+  :prep-tasks [["cljx" "once"] "javac" "compile"]
 
   :profiles {:dev {:plugins [[lein-cljsbuild "1.0.4"]
                              [lein-haml-sass "0.2.7-SNAPSHOT"]
@@ -49,7 +46,12 @@
 
   :aliases {"dev" ["pdo" ["cljx" "auto"]
                          ["sass" "auto"]
-                         ["figwheel"]]}
+                         ["figwheel"]]
+            "release" ["do"
+                       ["cljx" "once"]
+                       ["sass" "once"]
+                       ["cljsbuild" "once"]
+                       "uberjar"]}
 
   :cljx {:builds [{:source-paths ["src/cljx"]
                    :output-path "target/generated/src/clj"
