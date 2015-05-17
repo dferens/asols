@@ -5,7 +5,7 @@
             [taoensso.timbre :as timbre]
             [asols.network :as network]
             [asols.trainer :as trainer]
-            [asols.mutations :as mutations]
+            [asols.mutations :as m]
             [asols.commands :as commands]
             [asols.data :as data]))
 
@@ -20,23 +20,21 @@
      [ret# elapsed#]))
 
 (defprotocol SolverProtocol
-  (converged? [this solving])
-  (get-error-val [this net entries]))
+  (get-metrics [this net entries]))
 
 (defrecord ClassificationSolver [train-opts mutation-opts]
   SolverProtocol
-  (converged? [_ solving]
-    (= 0.0 (:train-value (:best-case solving))))
-  (get-error-val [_ net entries]
-    (- 1.0 (trainer/calc-ca net entries))))
+  (get-metrics [_ net entries]
+    (trainer/calc-ca net entries)))
 
 (defrecord RegressionSolver [train-opts mutation-opts]
   SolverProtocol
-  (converged? [_ solving]
-    (< (:test-value (:best-case solving))
-       1E-4))
-  (get-error-val [_ net entries]
-    (trainer/calc-cost net entries)))
+  (get-metrics [_ _ _] nil))
+
+(defn- converged?
+  [_ solving]
+  (< (:train-cost (:best-case solving))
+     1E-4))
 
 (defn create-solver
   [t-opts m-opts]
@@ -62,45 +60,58 @@
   [{:keys [mutation-opts]} net]
   (let [{:keys [remove-nodes? remove-edges? add-layers?]} mutation-opts]
     (concat
-      (mutations/identity-mutations net)
-      (mutations/add-edge-mutations net)
-      (mutations/add-node-mutations net)
-      (when remove-nodes? (mutations/del-node-mutations net))
-      (when remove-edges? (mutations/del-edge-mutations net))
-      (when add-layers? (mutations/add-layers-mutations net)))))
-
-(defn- make-solving-case
-  [solver net mutation train-value]
-  (let [test-entries (:test (get-dataset solver))
-        test-value (get-error-val solver net test-entries)
-        solving-mode (:mode (:mutation-opts solver))]
-    (commands/->SolvingCase solving-mode net mutation 0.0 train-value test-value)))
+      (m/identity-mutations net)
+      (m/add-edge-mutations net)
+      (m/add-node-mutations net)
+      (when remove-nodes? (m/del-node-mutations net))
+      (when remove-edges? (m/del-edge-mutations net))
+      (when add-layers? (m/add-layers-mutations net)))))
 
 (defn solve-mutation
   "Most important fn here.
   Tests given mutation"
   [{:keys [train-opts] :as solver} prev-net mutation]
-  (let [train-entries (:train (get-dataset solver))
-        mutated-net (mutations/mutate prev-net mutation)
-        new-net (trainer/train mutated-net train-entries train-opts)]
-    (make-solving-case
-      solver
-      new-net
-      mutation
-      (get-error-val solver new-net train-entries))))
+  (let [dataset (get-dataset solver)
+        entries [(:train dataset) (:test dataset)]
+        mutated-net (m/mutate prev-net mutation)
+        new-net (trainer/train mutated-net (:train dataset) train-opts)
+        [train-cost test-cost] (map #(trainer/calc-cost new-net %) entries)
+        [train-metrics test-metrics] (map #(get-metrics solver new-net %) entries)]
+    (commands/->SolvingCase
+      (:mode (:mutation-opts solver))
+      new-net mutation
+      train-cost test-cost
+      train-metrics test-metrics)))
 
 (defn- solve-mutations
   "Solves mutations in parallel using given thread pool.
   Sends solved mutations to progress-chan while working."
   [solver net mutations tpool progress-chan]
   (time-it
-    (cpool/pmap
-      tpool
-      (fn [mutation]
-        (let [solving-case (solve-mutation solver net mutation)]
-          (>!! progress-chan mutation)
-          solving-case))
-      mutations)))
+    (vec
+      (cpool/pmap
+        tpool
+        (fn [mutation]
+          (let [solving-case (solve-mutation solver net mutation)]
+            (>!! progress-chan mutation)
+            solving-case))
+        mutations))))
+
+(defn- make-combined-case
+  [solver net cases]
+  (let [select-count 5
+        {base-cost :train-cost} (first (for [{m :mutation :as case} cases
+                                             :when (= ::m/identity (:operation m))]
+                                         case))
+        selected-cases (->> cases
+                            (filter #(< (:train-cost %) base-cost))
+                            (sort-by :train-cost)
+                            (take select-count))]
+    (when (> (count selected-cases) 1)
+      (->> selected-cases
+           (map :mutation)
+           (m/combined-mutation)
+           (solve-mutation solver net)))))
 
 (defn- make-progress-chan
   "Returns chan which accepts mutations objects and sends progress commands
@@ -126,8 +137,11 @@
     (let [mutations (get-mutations solver net)
           progress-chan (make-progress-chan out-chan (count mutations))
           [cases ms-took] (solve-mutations solver net mutations tpool progress-chan)
-          sorted-cases (sort-by :train-value cases)
-          [best-case & other-cases] sorted-cases]
+          combined-case (make-combined-case solver net cases)
+          all-cases (if (nil? combined-case)
+                      cases
+                      (into [combined-case] cases))
+          [best-case & other-cases] (sort-by :train-cost all-cases)]
       (make-solving solver net best-case other-cases ms-took))
     (catch InterruptedException _
       (debug "Detected thread interrupt"))))
@@ -143,7 +157,7 @@
 (defn create-initial-case
   [solver]
   (let [net (create-start-net solver)
-        mutation (first (mutations/identity-mutations net))]
+        mutation (first (m/identity-mutations net))]
     (solve-mutation solver net mutation)))
 
 (defn solver-loop
@@ -155,8 +169,8 @@
             [val ch] (alts!! [abort-chan solving-chan])]
         (when (not= ch abort-chan)
           (let [new-solving val
-                better? (< (:train-value (:best-case new-solving))
-                           (:train-value current-case))
+                better? (< (:train-cost (:best-case new-solving))
+                           (:train-cost current-case))
                 best? (converged? solver new-solving)]
             (if better?
               (do

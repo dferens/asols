@@ -21,66 +21,74 @@
 (defmethod mutation-view :asols.mutations/identity [_]
   [:span "nothing"])
 
+(defmethod mutation-view :asols.mutations/combined [m]
+  (map mutation-view (:mutations m)))
+
 (defmethod mutation-view :asols.mutations/add-node [m]
-  [:span "added node "
-   [:span.label.label-primary (node->str (:added-node m))]])
+  [:span.label.label-success (node->str (:added-node m))])
 
 (defmethod mutation-view :asols.mutations/add-edge [m]
   (let [title (edge->str (:added-edge m))]
-    [:span "added edge "
-     [:span.label.label-success title]]))
+    [:span.label.label-success title]))
 
 (defmethod mutation-view :asols.mutations/del-node [m]
-  [:span "removed node "
-   [:span.label.label-primary (node->str (:deleted-node m))]])
+  [:span.label.label-danger (node->str (:deleted-node m))])
 
 (defmethod mutation-view :asols.mutations/del-edge [m]
   (let [title (edge->str (:deleted-edge m))]
-    [:span "removed edge "
-     [:span.label.label-success title]]))
+    [:span.label.label-danger title]))
 
 (defmethod mutation-view :asols.mutations/add-layer [m]
-  [:span (format "added hidden layer at %s " (:layer-pos m))
-   [:span.label.label-info (name (:layer-type m))]])
-
-(defmulti format-net-value (fn [solver & _] (:mode solver)))
-(defmethod format-net-value :asols.commands/regression
-  [_ val]
-  (format "%.3f" val))
-(defmethod format-net-value :asols.commands/classification
-  [_ val]
-  (format "%.2f %%" (* 100 (- 1.0 val))))
+  [:span (format "added layer at %s " (:layer-pos m))
+   [:span.label.label-success (name (:layer-type m))]])
 
 (defn format-cost
-  [solving-case]
-  (format "%.4f" (:cost solving-case)))
+  [cost-val]
+  (format "%.4f" cost-val))
 
-(defmulti net-value-title :mode)
-(defmethod net-value-title :asols.commands/regression [_] "error")
-(defmethod net-value-title :asols.commands/classification [_] "CA")
+(defn format-ca
+  [ca-val]
+  (format "%.2f" ca-val))
+
+(def default-case-headers ["Mutation" "Train cost" "Test cost"])
+
+(defn- default-case-data
+  [case]
+  [(mutation-view (:mutation case))
+   (format-cost (:train-cost case))
+   (format-cost (:test-cost case))])
+
+(defmulti case-headers :mode)
+(defmethod case-headers :default [_] default-case-headers)
+(defmethod case-headers :asols.commands/classification [_]
+  (concat default-case-headers ["Train CA" "Test CA"]))
+
+(defmulti case-data :mode)
+(defmethod case-data :default [case] (default-case-data case))
+(defmethod case-data :asols.commands/classification
+  [{:keys [train-metrics test-metrics] :as case}]
+  (let [[train-ca test-ca] (map #(* 100 %) [train-metrics test-metrics])]
+    (concat
+      (default-case-data case)
+      [(format-ca train-ca)
+       (format-ca test-ca)])))
 
 (defn format-time [ms-took]
   (condp > ms-took
     1E3 (str (int ms-took) " ms")
-    1E6 (format "%.2f sec" (/ ms-took 1E3))))
+    (* 60 1E3) (format "%.2f sec" (/ ms-took 1E3))
+    (* 60 60 1E3) (let [min (int (/ ms-took 60E3))
+                        sec (int (rem (/ ms-took 1E3) 60))]
+                    (format "%d min %d sec" min sec))))
 
 (defcomponent solving-case-block [{:keys [solving-case hover-chan case-id best?]}]
   (render [_]
     (html
       [:tr
-       {:class         (when best? "success")
-        :on-click #_:on-mouse-over #(go (>! hover-chan case-id))
-        #_:on-mouse-out  #_#(go (>! hover-chan :none))}
-       [:td (mutation-view (:mutation solving-case))]
-       [:td (format-cost solving-case)]
-       [:td (format-net-value solving-case (:train-value solving-case))]
-       [:td (format-net-value solving-case (:test-value solving-case))]
-       [:td [:button.btn.btn-success.btn-xs
-             {:on-click #(do
-                          (let [serialized-net (pr-str (:network solving-case))]
-                            (.prompt js/window serialized-net)
-                            (debug serialized-net)))}
-             "Get network"]]])))
+       {:class    (when best? "success")
+        :on-click #(go (>! hover-chan case-id))}
+       (for [val (case-data solving-case)]
+         [:td val])])))
 
 (defn render-network
   [network]
@@ -106,30 +114,26 @@
 
   (render-state [_ {:keys [visible? hover-chan]}]
     (html
-      (let [{:keys [cases best-case ms-took]} solving]
+      (let [{:keys [cases best-case ms-took]} solving
+            [mutation train-cost test-cost] (default-case-data best-case)]
         [:li.list-group-item.solving
          [:.row {:on-click #(om/update-state! owner :visible? not)}
           [:.col-xs-12
            [:span
-            (when number (format "%d. " number))
-            (mutation-view (:mutation best-case))]
+            (format "%d. " number)
+            mutation]
            [:span.label.label-danger.pull-right
-            "Test " (format-net-value best-case (:test-value best-case))]
+            "Test " test-cost]
            [:span.label.label-warning.pull-right
-            "Train " (format-net-value best-case (:train-value best-case))]
-           [:span.label.label-info.pull-right
-            "Cost " (format-cost best-case)]
+            "Train " train-cost]
            [:span.label.label-default.pull-right
             (format-time ms-took)]]]
          [:.row {:class (when-not visible? "hidden")}
           [:.col-xs-12
            [:table.table.table-condensed.table-hover
             [:thead
-             [:tr
-              [:th "Operation"]
-              [:th "Cost"]
-              [:th (str "Train " (net-value-title best-case))]
-              [:th (str "Test " (net-value-title best-case))]]]
+             [:tr (for [h (case-headers best-case)]
+                    [:th h])]]
             [:tbody
              (om/build solving-case-block {:solving-case best-case
                                            :hover-chan hover-chan

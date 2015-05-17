@@ -9,12 +9,12 @@
 (defn test-value-serie
   [solvings]
   (->> (map :best-case solvings)
-       (map :test-value)))
+       (map :test-cost)))
 
 (defn train-value-serie
   [solvings]
   (->> (map :best-case solvings)
-       (map :train-value)))
+       (map :train-cost)))
 
 (defn- errors-chart-config
   [solvings]

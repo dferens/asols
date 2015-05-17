@@ -4,11 +4,21 @@
 
 (def operations
   #{::identity
+    ::combined
     ::add-node ::del-node
     ::add-edge ::del-edge
     ::add-layer})
 
 (defmulti mutate (fn [net mutation] (:operation mutation)))
+
+(defn combined-mutation
+  [mutations]
+  {:operation ::combined
+   :mutations mutations})
+
+(defmethod mutate ::combined
+  [net {:keys [mutations]}]
+  (reduce mutate net mutations))
 
 (defn identity-mutations [_]
   [{:operation ::identity}])
@@ -84,7 +94,7 @@
   [net]
   (mapcat
     #(del-layer-edges-mutations net %)
-    (map-indexed vector (:layers net))))
+    (map-indexed vector (butlast (:layers net)))))
 
 (defn add-layers-mutations
   "Returns mutations for adding new hidden layers to net"

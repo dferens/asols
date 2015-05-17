@@ -14,7 +14,9 @@
                          out-type
                          remove-edges? remove-nodes? add-layers?])
 
-(defrecord SolvingCase [mode net mutation cost train-value test-value])
+(defrecord SolvingCase [mode net mutation
+                        train-cost test-cost
+                        train-metrics test-metrics])
 
 (defrecord Solving [initial-net train-opts mutation-opts best-case cases ms-took])
 
@@ -40,13 +42,13 @@
    :value    (double value)})
 
 #+clj
-(defn- serialize-case
-  [{:keys [mode mutation cost train-value test-value]}]
-  {:mode mode
-   :mutation mutation
-   :cost cost
-   :train-value train-value
-   :test-value test-value})
+(defn- serialize-case [case]
+  {:mode          (:mode case)
+   :mutation      (:mutation case)
+   :train-cost    (:train-cost case)
+   :test-cost     (:test-cost case)
+   :train-metrics (:train-metrics case)
+   :test-metrics  (:test-metrics case)})
 
 #+clj
 (defn- serialize-solving
