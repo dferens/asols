@@ -157,7 +157,8 @@
 
 (go
   (when (nil? (:connection @app-state))
-    (let [ws-chan (ws-ch "ws://localhost:8000/ws" {:format :edn})
+    (let [ws-url (str "ws://" (.. js/window -location -host) "/ws")
+          ws-chan (ws-ch ws-url {:format :edn})
           {connection :ws-channel error :error} (<! ws-chan)]
       (if error
         (do
