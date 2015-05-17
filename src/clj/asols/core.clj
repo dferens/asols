@@ -5,8 +5,8 @@
 
 (defn -main
   [& args]
-  (let [ip "localhost"
-        port 8000]
+  (let [ip (or (first args) "localhost")
+        port (Integer/parseInt (or (second args) "8000"))]
     (server/run :ip ip :port port)
     (prn "Server started")
     (browse-url (str "http://" ip ":" port))))
