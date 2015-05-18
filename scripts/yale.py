@@ -11,6 +11,7 @@ import re
 import sys
 import os
 import csv
+import random
 from os import path
 
 from PIL import Image
@@ -44,6 +45,7 @@ def get_files(subj_dir, images_per_subj):
     # Remove dark photos
     # data = filter(lambda x: abs(x[2]) < 50, data)
     # data = sorted(data, key=lambda x: abs(x[1]))
+    random.shuffle(data)
     file_names = [x[0] for x in data[:images_per_subj]]
     return [(subj_dir, x) for x in file_names]
 
