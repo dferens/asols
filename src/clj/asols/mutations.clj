@@ -1,5 +1,6 @@
 (ns asols.mutations
   (:require [asols.network :as network]
+            [asols.trainer :as t]
             [clojure.core.matrix :as m]))
 
 (def operations
@@ -100,8 +101,8 @@
   "Returns mutations for adding new hidden layers to net"
   [net]
   (for [[i layer] (map-indexed vector (:layers net))
+        layer-type (t/hidden-types)
         :let [layer-i (inc i)
-              layer-type (:type layer)
               [_ out-count] (network/get-layer-shape layer)]]
     {:operation  ::add-layer
      :layer-type layer-type
