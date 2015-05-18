@@ -97,7 +97,7 @@
             solving-case))
         mutations))))
 
-(defn- make-combined-case
+(defn- make-combined-cases
   [solver net cases]
   (let [select-count 5
         {base-cost :train-cost} (first (for [{m :mutation :as case} cases
@@ -107,11 +107,10 @@
                             (filter #(< (:train-cost %) base-cost))
                             (sort-by :train-cost)
                             (take select-count))]
-    (when (> (count selected-cases) 1)
-      (->> selected-cases
-           (map :mutation)
-           (m/combined-mutation)
-           (solve-mutation solver net)))))
+    (for [select-count (range 2 (inc (count selected-cases)))
+          :let [merge-cases (take select-count selected-cases)
+                mutation (m/combined-mutation (map :mutation merge-cases))]]
+      (solve-mutation solver net mutation))))
 
 (defn- make-progress-chan
   "Returns chan which accepts mutations objects and sends progress commands
@@ -137,10 +136,7 @@
     (let [mutations (get-mutations solver net)
           progress-chan (make-progress-chan out-chan (count mutations))
           [cases ms-took] (solve-mutations solver net mutations tpool progress-chan)
-          combined-case (make-combined-case solver net cases)
-          all-cases (if (nil? combined-case)
-                      cases
-                      (into [combined-case] cases))
+          all-cases (concat cases (make-combined-cases solver net cases))
           [best-case & other-cases] (sort-by :train-cost all-cases)]
       (make-solving solver net best-case other-cases ms-took))
     (catch InterruptedException _

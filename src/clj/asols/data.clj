@@ -79,20 +79,20 @@
     (5% class noise added to the training set)"
   (parse-monks-dataset "monks-3_learn.tab" "monks-3_test.tab"))
 
-(def ^:private twospirals
-  (let [entries (for [line (read-dataset "twospirals.tab")
-                      :let [[x y class] line]]
-                  (entry [(Double/parseDouble x)
-                          (Double/parseDouble y)]
-                         (class-vec (Integer/parseInt class) 2)))]
-    (->Dataset entries entries 2 2)))
-
-
 (defn random-split
   "(random-split [0 1 2 3 4 5] 1/5) -> [[0][1 2 3 4 5]"
   [coll proportion]
   (let [index (Math/floor (* proportion (count coll)))]
     (split-at index (shuffle coll))))
+
+(def ^:private twospirals
+  (let [entries (for [line (read-dataset "twospirals.tab")
+                      :let [[x y class] line]]
+                  (entry [(Double/parseDouble x)
+                          (Double/parseDouble y)]
+                         (class-vec (Integer/parseInt class) 2)))
+        [train-entries test-entries] [entries entries]]
+    (->Dataset train-entries test-entries 2 2)))
 
 (defn- parse-fer2013-dataset
   "Facial Expression Recognition Challenge
