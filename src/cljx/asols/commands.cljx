@@ -9,10 +9,28 @@
 
 (defrecord TrainOpts [learning-rate momentum l2-lambda iter-count])
 
+(defn train-opts
+  [& {:keys [learning-rate momentum l2-lambda iter-count]
+      :or {learning-rate 0.1
+           momentum 0.9
+           l2-lambda 0.1
+           iter-count 100}}]
+  (->TrainOpts learning-rate momentum l2-lambda iter-count))
+
 (defrecord MutationOpts [mode dataset
                          hidden-type hidden-count
                          out-type
                          remove-edges? remove-nodes? add-layers?])
+
+(defn mutation-opts
+  [& {:keys [mode dataset hidden-type hidden-count out-type
+             remove-edges? remove-nodes? add-layers?]
+      :or {hidden-count 1
+           remove-edges? true
+           remove-nodes? true
+           add-layers? false}}]
+  (->MutationOpts mode dataset hidden-type hidden-count out-type
+                  remove-edges? remove-nodes? add-layers?))
 
 (defrecord SolvingCase [mode net mutation
                         train-cost test-cost

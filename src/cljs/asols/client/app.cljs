@@ -22,19 +22,14 @@
 
 ;; App state management
 
-(defn mutation-opts []
-  (cmd/->MutationOpts
-    ::cmd/classification nil
-    nil 1
-    nil
-    true true false))
-
 (defonce app-state
   (atom {:connection nil
          :running? false
          :progress nil
-         :settings {:train-opts (cmd/->TrainOpts 0.3 0.5 5E-8 100)
-                    :mutation-opts (mutation-opts)
+         :settings {:train-opts (cmd/train-opts :learning-rate 0.3
+                                                :momentum 0.5
+                                                :iter-count 100)
+                    :mutation-opts (cmd/mutation-opts :mode ::cmd/classification)
                     :hidden-types []
                     :out-types []
                     :datasets []}

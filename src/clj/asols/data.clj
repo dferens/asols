@@ -144,7 +144,7 @@
                       :let [pixels (map #(Double/parseDouble %) (butlast line))
                             target-class (Integer/parseInt (last line))]]
                   (entry (array pixels) (class-vec target-class 5 1)))
-        [train-entries test-entries] (random-split entries 0.6)]
+        [train-entries test-entries] (random-split entries 0.7)]
     (->Dataset train-entries test-entries (* 26 26) 5)))
 
 (def datasets
