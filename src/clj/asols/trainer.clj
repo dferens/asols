@@ -120,8 +120,10 @@
        (if (>= layer-i layers-count)
          out-vectors
          (let [is-out-layer? (= layer-i (dec layers-count))
-               {:keys [edges-matrix] :as layer} (nth layers layer-i)
-               weighted-sums (m/mmul (last out-vectors) edges-matrix)
+               {:keys [edges-matrix biases] :as layer} (nth layers layer-i)
+               weighted-sums (-> (last out-vectors)
+                                 (m/mmul edges-matrix)
+                                 (m/add! biases))
                out-vec (forward layer weighted-sums)
                final-out-vec (if is-out-layer?
                                out-vec
