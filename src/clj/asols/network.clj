@@ -55,6 +55,11 @@
   [in-count out-count out-type]
   {:layers [(layer out-type in-count out-count)]})
 
+(defn for-dataset
+  [dataset out-type]
+  (let [{:keys [inputs-count outputs-count]} dataset]
+    (network inputs-count outputs-count out-type)))
+
 (defn shape
   "Returns network shape ([inputs-count outputs-count])"
   [{:keys [layers]}]

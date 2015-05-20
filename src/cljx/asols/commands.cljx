@@ -7,15 +7,20 @@
 (def modes
   #{::regression ::classification})
 
-(defrecord TrainOpts [learning-rate momentum l2-lambda iter-count])
+(defrecord TrainOpts [learning-rate momentum l2-lambda iter-count
+                      in-node-prob hidden-node-prob])
 
 (defn train-opts
-  [& {:keys [learning-rate momentum l2-lambda iter-count]
+  [& {:keys [learning-rate momentum l2-lambda iter-count
+             in-node-prob hidden-node-prob]
       :or {learning-rate 0.1
            momentum 0.9
-           l2-lambda 0.1
-           iter-count 100}}]
-  (->TrainOpts learning-rate momentum l2-lambda iter-count))
+           l2-lambda 0.01
+           iter-count 100
+           in-node-prob 1
+           hidden-node-prob 1}}]
+  (->TrainOpts learning-rate momentum l2-lambda iter-count
+               in-node-prob hidden-node-prob))
 
 (defrecord MutationOpts [mode dataset
                          hidden-type hidden-count

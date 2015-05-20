@@ -42,7 +42,8 @@
            (into #{} (map #(mutate net %) (del-node-mutations net)))))))
 
 (deftest del-edge-mutations-test
-  (let [net (net/network 2 2 ::t/sigmoid)]
+  (let [net (-> (net/network 2 2 ::t/sigmoid)
+                (net/insert-layer 1 ::t/sigmoid 2))]
     (is (= #{(net/del-edge net 0 0 0)
              (net/del-edge net 0 0 1)
              (net/del-edge net 0 1 0)

@@ -35,6 +35,14 @@
             [:.col-sm-8
              (widgets/input settings [:train-opts :iter-count] parse-int)]]
            [:.form-group
+            [:label.control-label.col-sm-4 "Input node prob."]
+            [:.col-sm-8
+             (widgets/input settings [:train-opts :in-node-prob] parse-float)]]
+           [:.form-group
+            [:label.control-label.col-sm-4 "Hidden node prob."]
+            [:.col-sm-8
+             (widgets/input settings [:train-opts :hidden-node-prob] parse-float)]]
+           [:.form-group
             [:.col-sm-8.col-sm-offset-4
              (if running?
                [:button.btn.btn-block.btn-danger

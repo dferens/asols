@@ -24,7 +24,7 @@
                 (net/insert-layer 1 :asols.trainer/sigmoid 2))
         entry {:input-vec (array [0.5 1])
                :target-vec (array [1 1])}
-        t-opts (->TrainOpts 0.1 0.5 0.1 100)
+        t-opts (->TrainOpts 0.1 0.5 0.1 100 1 1)
         initial-delta-w (get-initial-delta-w net)
         results (backprop-step-delta net entry 1 t-opts initial-delta-w)
         [delta-weights delta-biases] results]
@@ -45,7 +45,7 @@
                  {:input-vec  (array [1 1])
                   :target-vec (array [1 0])}]
         untrained-cost (calc-cost net entries)
-        t-opts (->TrainOpts 0.1 0.3 0.0 100)
+        t-opts (->TrainOpts 0.1 0.3 0.0 100 1 1)
         trained-net (train-epoch net entries t-opts)
         trained-cost (calc-cost trained-net entries)
         net-shapes (for [layer (:layers net)]
@@ -70,7 +70,7 @@
                  {:input-vec  (array [1 1])
                   :target-vec (array [1 0])}]
         untrained-cost (calc-cost net entries)
-        t-opts (->TrainOpts 0.1 0.5 0.1 100)
+        t-opts (->TrainOpts 0.1 0.5 0.1 100 1 1)
         trained-net (train net entries t-opts)
         trained-cost (calc-cost trained-net entries)]
     (is (not= net trained-net))
@@ -109,31 +109,3 @@
            (calc-ca net [(data/entry [0 1] [1 0])
                          (data/entry [0 1] [0 1])
                          (data/entry [0 1] [1 0])])))))
-
-
-
-#_(profile :info :test
-  (let [t-opts (->TrainOpts 0.01 0.25 5E-8 3)
-        hidden :asols.trainer/relu
-        m-opts (->MutationOpts :asols.commands/classification
-                               ::data/fer2013
-                               hidden 800
-                               :asols.trainer/softmax
-                               true false false)
-        solver (s/create-solver t-opts m-opts)
-        {train-entries :train test-entries :test} (s/get-dataset solver)
-        initial-net (-> (s/create-start-net solver)
-                        (net/insert-layer 2 hidden 100)
-                        (s/train-with solver))
-        mutations (s/get-mutations solver initial-net)]
-    (prn "Initial network:")
-    (prn "Train: cost "
-         (calc-cost initial-net train-entries)
-         " ca: "
-         (calc-ca initial-net train-entries))
-    (doseq [{:keys [network deleted-edge]} mutations]
-      (let [train-ca (calc-ca network train-entries)
-            train-cost (calc-cost network train-entries)]
-        (prn "Deleted edge: "
-             "train cost: " train-cost
-             " ca: " train-ca)))))

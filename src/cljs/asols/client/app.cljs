@@ -26,8 +26,9 @@
   (atom {:connection nil
          :running? false
          :progress nil
-         :settings {:train-opts (cmd/train-opts :learning-rate 0.3
-                                                :momentum 0.5
+         :settings {:train-opts (cmd/train-opts :learning-rate 0.2
+                                                :momentum 0.6
+                                                :l2-lambda 0.1
                                                 :iter-count 100)
                     :mutation-opts (cmd/mutation-opts :mode ::cmd/classification)
                     :hidden-types []

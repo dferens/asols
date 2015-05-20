@@ -98,19 +98,36 @@
 
 ;; Backprop implementation
 
+(defn keep-with-prob
+  [vector keep-prob]
+  (if (= 1.0 (double keep-prob))
+    vector
+    (m/emap
+     (fn [val]
+       (if (< (rand) keep-prob)
+         val
+         0.0))
+     vector)))
+
 (defn forward-pass
   "Performs forward pass, returns vector of vectors of layers outputs"
-  [{:keys [layers]} in-vec]
-  (let [layers-count (count layers)]
-    (loop [out-vectors [in-vec]
-           layer-i 0]
-      (if (>= layer-i layers-count)
-        out-vectors
-        (let [{:keys [edges-matrix] :as layer} (nth layers layer-i)
-              weighted-sums (m/mmul (last out-vectors) edges-matrix)
-              out-vec (forward layer weighted-sums)]
-          (recur (conj out-vectors out-vec)
-                 (+ 1 layer-i)))))))
+  ([net in-vec]
+    (forward-pass net in-vec 1 1))
+  ([{:keys [layers]} in-vec in-prob hidden-prob]
+    (let [layers-count (count layers)]
+     (loop [out-vectors [(keep-with-prob in-vec in-prob)]
+            layer-i 0]
+       (if (>= layer-i layers-count)
+         out-vectors
+         (let [is-out-layer? (= layer-i (dec layers-count))
+               {:keys [edges-matrix] :as layer} (nth layers layer-i)
+               weighted-sums (m/mmul (last out-vectors) edges-matrix)
+               out-vec (forward layer weighted-sums)
+               final-out-vec (if is-out-layer?
+                               out-vec
+                               (keep-with-prob out-vec hidden-prob))]
+           (recur (conj out-vectors final-out-vec)
+                  (+ 1 layer-i))))))))
 
 (defn activate
   "Returns network output vector on given input vector."
@@ -184,7 +201,8 @@
     delta-biases - coll of vectors of biases deltas for each layer"
   [net entry e-count t-opts prev-delta-w]
   (let [{:keys [input-vec target-vec]} entry
-        forward-vecs (forward-pass net input-vec)
+        {:keys [in-node-prob hidden-node-prob]} t-opts
+        forward-vecs (forward-pass net input-vec in-node-prob hidden-node-prob)
         deltas-vecs (backward-pass net target-vec forward-vecs)]
     [(map
        #(backprop-delta-layer-weights e-count t-opts %1 %2 %3 %4)
@@ -256,6 +274,22 @@
       (let [new-net (train-epoch net entries t-opts)]
         (recur new-net (inc iter-i)))
       net)))
+
+(defn train-map
+  "Trains given network on a dataset during multiple epochs,
+  returns new net."
+  [start-net entries t-opts net-fn]
+  {:pre [(not (empty? entries))
+         (instance? TrainOpts t-opts)]}
+  (loop [net start-net
+         iter-i 0
+         vals (transient [])]
+    (if (< iter-i (:iter-count t-opts))
+      (let [new-net (train-epoch net entries t-opts)]
+        (recur new-net
+               (inc iter-i)
+               (conj! vals (net-fn new-net))))
+      (persistent! vals))))
 
 (defn- calc-distance-error-entry
   "Calculates error on single dataset entry for given network"

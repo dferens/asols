@@ -149,18 +149,18 @@
       (debug "Detected thread interrupt"))))
 
 (defn create-start-net
-  [{:keys [train-opts mutation-opts] :as solver}]
-  (let [{:keys [inputs-count outputs-count]} (get-dataset solver)
-        {:keys [hidden-type out-type hidden-count]} mutation-opts]
-    (-> (network/network inputs-count outputs-count out-type)
-        (network/insert-layer 1 hidden-type hidden-count)
-        (trainer/train (:train (get-dataset solver)) train-opts))))
+  [{:keys [mutation-opts] :as solver}]
+  (let [{:keys [hidden-type out-type hidden-count]} mutation-opts
+        dataset (get-dataset solver)]
+    (-> (network/for-dataset dataset out-type)
+        (network/insert-layer 1 hidden-type hidden-count))))
 
 (defn create-initial-case
-  [solver]
+  [{:keys [train-opts] :as solver}]
   (let [net (create-start-net solver)
-        mutation (first (m/identity-mutations net))]
-    (solve-mutation solver net mutation)))
+        trained-net (trainer/train net (:train (get-dataset solver)) train-opts)
+        mutation (first (m/identity-mutations trained-net))]
+    (solve-mutation solver trained-net mutation)))
 
 (defn solver-loop
   [solver out-chan abort-chan]
