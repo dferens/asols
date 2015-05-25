@@ -3,7 +3,7 @@
             [clojure.test :refer :all]
             [taoensso.timbre.profiling :refer [profile p]]
             [asols.network :as net]
-            [asols.commands :refer [->TrainOpts ->MutationOpts]]
+            [asols.commands :refer [train-opts ->MutationOpts]]
             [asols.data :as data]
             [asols.trainer :refer :all]
             [asols.solver :as s]))
@@ -24,7 +24,7 @@
                 (net/insert-layer 1 :asols.trainer/sigmoid 2))
         entry {:input-vec (array [0.5 1])
                :target-vec (array [1 1])}
-        t-opts (->TrainOpts 0.1 0.5 0.1 100 1 1)
+        t-opts (train-opts )
         initial-delta-w (get-initial-delta-w net)
         results (backprop-step-delta net entry 1 t-opts initial-delta-w)
         [delta-weights delta-biases] results]
@@ -45,7 +45,7 @@
                  {:input-vec  (array [1 1])
                   :target-vec (array [1 0])}]
         untrained-cost (calc-cost net entries)
-        t-opts (->TrainOpts 0.1 0.3 0.0 100 1 1)
+        t-opts (train-opts)
         trained-net (train-epoch net entries t-opts)
         trained-cost (calc-cost trained-net entries)
         net-shapes (for [layer (:layers net)]
@@ -70,7 +70,7 @@
                  {:input-vec  (array [1 1])
                   :target-vec (array [1 0])}]
         untrained-cost (calc-cost net entries)
-        t-opts (->TrainOpts 0.1 0.5 0.1 100 1 1)
+        t-opts (train-opts)
         trained-net (train net entries t-opts)
         trained-cost (calc-cost trained-net entries)]
     (is (not= net trained-net))
