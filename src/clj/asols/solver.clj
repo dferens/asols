@@ -20,30 +20,24 @@
      [ret# elapsed#]))
 
 (defprotocol SolverProtocol
-  (get-metrics [this net entries])
-  (sort-cases [this cases]))
+  (get-metrics [this net entries]))
 
 (defrecord ClassificationSolver [train-opts mutation-opts]
   SolverProtocol
   (get-metrics [_ net entries]
-    (trainer/calc-ca net entries))
-  (sort-cases [_ cases]
-    (sort-by
-      (fn [case]
-        [(- 1.0 (:train-metrics case))
-         (:train-cost case)])
-      cases)))
+    (trainer/calc-ca net entries)))
 
 (defrecord RegressionSolver [train-opts mutation-opts]
   SolverProtocol
-  (get-metrics [_ _ _] nil)
-  (sort-cases [_ cases]
-    (sort-by :train-cost cases)))
+  (get-metrics [_ _ _] nil))
 
 (defn- converged?
   [_ solving]
   (< (:train-cost (:best-case solving))
      1E-4))
+
+(defn- sort-cases [cases]
+  (sort-by :train-cost cases))
 
 (defn create-solver
   [t-opts m-opts]
@@ -110,7 +104,7 @@
   [solver net cases]
   (let [select-count 5
         selected-cases (->> cases
-                            (sort-cases solver)
+                            (sort-cases)
                             (take-while #(not= ::m/identity (:operation (:mutation %))))
                             (take select-count))]
     (for [select-count (range 2 (inc (count selected-cases)))
@@ -143,7 +137,7 @@
           progress-chan (make-progress-chan out-chan (count mutations))
           [cases ms-took] (solve-mutations solver net mutations tpool progress-chan)
           all-cases (concat cases (make-combined-cases solver net cases))
-          [best-case & other-cases] (sort-cases solver all-cases)]
+          [best-case & other-cases] (sort-cases all-cases)]
       (make-solving solver net best-case other-cases ms-took))
     (catch InterruptedException _
       (debug "Detected thread interrupt"))))
