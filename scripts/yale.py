@@ -53,9 +53,25 @@ def main(args):
     source_dir = args[0]#path.abspath(args[0])
     target_file = args[1]
     pixels_count = FINAL_SIZE[0] * FINAL_SIZE[1]
-    subject_dirs = [path.join(source_dir, 'yaleB0%d' % i)
+    subject_dirs = [path.join(source_dir, 'yaleB%.2d' % i)
                     for i in xrange(1, SUBJECTS_COUNT + 1)]
     subjects_filenames = map(lambda dir: get_files(dir, IMAGES_PER_SUBJECT), subject_dirs)
+
+    rows = []
+
+    for filenames in subjects_filenames:
+        for subj_dir, filename in filenames:
+            subject_id = int(re.search(r'\d{2}', subj_dir).group())
+            file_path = path.join(subj_dir, filename)
+            image = Image.open(file_path)
+            resized = image.resize(FINAL_SIZE)
+            image_data = resized.getdata()
+            pixels = [image_data.getpixel((i, j)) / 255.
+                      for i in range(FINAL_SIZE[0])
+                      for j in range(FINAL_SIZE[1])]
+            rows.append(pixels + [subject_id])
+
+    random.shuffle(rows)
 
     with open(target_file, 'wb') as result_file:
         writer = csv.writer(result_file, delimiter='\t')
@@ -64,18 +80,8 @@ def main(args):
                         ['subject'])
         writer.writerow(['c' for i in xrange(pixels_count)] + ['d'])
         writer.writerow(['' for i in xrange(pixels_count)] + ['class'])
-
-        for filenames in subjects_filenames:
-            for subj_dir, filename in filenames:
-                subject_id = int(re.search(r'\d{2}', subj_dir).group())
-                file_path = path.join(subj_dir, filename)
-                image = Image.open(file_path)
-                resized = image.resize(FINAL_SIZE)
-                image_data = resized.getdata()
-                pixels = [image_data.getpixel((i, j)) / 255.
-                          for i in range(FINAL_SIZE[0])
-                          for j in range(FINAL_SIZE[1])]
-                writer.writerow(pixels + [subject_id])
+        for row in rows:
+            writer.writerow(row)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

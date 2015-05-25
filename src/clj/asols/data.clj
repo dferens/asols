@@ -83,7 +83,7 @@
   "(random-split [0 1 2 3 4 5] 1/5) -> [[0][1 2 3 4 5]"
   [coll proportion]
   (let [index (Math/floor (* proportion (count coll)))]
-    (split-at index (shuffle coll))))
+    (split-at index coll)))
 
 (def ^:private twospirals
   (let [entries (for [line (read-dataset "twospirals.tab")
@@ -140,12 +140,13 @@
 
 (defn parse-yale-dataset
   [dataset-file]
-  (let [entries (for [line (read-dataset dataset-file)
+  (let [out-count 5
+        entries (for [line (read-dataset dataset-file)
                       :let [pixels (map #(Double/parseDouble %) (butlast line))
                             target-class (Integer/parseInt (last line))]]
-                  (entry (array pixels) (class-vec target-class 5 1)))
+                  (entry (array pixels) (class-vec target-class out-count 1)))
         [train-entries test-entries] (random-split entries 0.7)]
-    (->Dataset train-entries test-entries (* 26 26) 5)))
+    (->Dataset train-entries test-entries (* 26 26) out-count)))
 
 (def datasets
   {::monks1     monks1
