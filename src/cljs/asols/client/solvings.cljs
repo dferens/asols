@@ -81,15 +81,6 @@
                         sec (int (rem (/ ms-took 1E3) 60))]
                     (format "%d min %d sec" min sec))))
 
-(defcomponent solving-case-block [{:keys [solving-case hover-chan case-id best?]}]
-  (render [_]
-    (html
-      [:tr
-       {:class    (when best? "success")
-        :on-click #(go (>! hover-chan case-id))}
-       (for [val (case-data solving-case)]
-         [:td val])])))
-
 (defn render-network
   [network]
   (go
@@ -109,27 +100,29 @@
        (< (* page-size (inc page-num))
           (count coll))))
 
+(defn get-pages-range [coll page-size]
+  (range (Math/ceil (/ (count coll) page-size))))
+
+(defcomponent solving-case-block [{:keys [case best?]}]
+  (render [_]
+    (html
+      [:tr
+       {:class    (when best? "success")}
+       (for [val (case-data case)]
+         [:td val])])))
+
 (defcomponent solving-block [{:keys [number solving visible?]
                               :or {visible? false}}
                              owner]
   (init-state [_]
     {:visible? visible?
-     :hover-chan (chan)
      :cases-page 0})
 
-  (will-mount [_]
-    (let [hover-chan (om/get-state owner :hover-chan)]
-      (go (>! hover-chan :none))
-      (go-loop [case-num (<! hover-chan)]
-               (let [case (if (= case-num :none)
-                            (:best-case solving)
-                            (nth (:cases solving) case-num))]
-                 (recur (<! hover-chan))))))
-
-  (render-state [_ {:keys [visible? hover-chan cases-page]}]
+  (render-state [_ {:keys [visible? cases-page]}]
     (html
       (let [{:keys [cases best-case ms-took]} solving
-            visible-cases (get-page cases cases-per-page cases-page)
+            all-cases (into [best-case] cases)
+            visible-cases (get-page all-cases cases-per-page cases-page)
             [mutation train-cost test-cost] (default-case-data best-case)]
         [:li.list-group-item.solving
          [:.row {:on-click #(om/update-state! owner :visible? not)}
@@ -148,32 +141,19 @@
            [:.row
             [:.col-xs-12
              [:table.table.table-condensed.table-hover
-              [:thead
-               [:tr (for [h (case-headers best-case)]
-                      [:th h])]]
+              [:thead [:tr (for [h (case-headers best-case)]
+                             [:th h])]]
               [:tbody
-               (om/build solving-case-block {:solving-case best-case
-                                             :hover-chan   hover-chan
-                                             :case-id      :none
-                                             :best?        true})
-               (for [[i case] (map-indexed vector visible-cases)]
-                 (om/build solving-case-block {:solving-case case
-                                               :hover-chan   hover-chan
-                                               :case-id      i
-                                               :best?        false}))]]]]
+               (for [case visible-cases]
+                 (om/build solving-case-block {:case case :best? (= case best-case)}))]]]]
            [:.row
             [:.col-xs-12
-             [:ul.pager
-              (when (has-page? cases cases-per-page (dec cases-page))
-                [:li
-                 [:a
-                  {:href "#" :on-click #(om/update-state! owner :cases-page dec)}
-                  [:i.fui-arrow-left]]])
-              (when (has-page? cases cases-per-page (inc cases-page))
-                [:li
-                 [:a
-                  {:href "#" :on-click #(om/update-state! owner :cases-page inc)}
-                  [:i.fui-arrow-right]]])]]]]]]))))
+             [:ul.pagination-plain
+              (for [page-i (get-pages-range all-cases cases-per-page)]
+                [:li {:class (when (= page-i cases-page)
+                               "active")}
+                 [:a {:on-click #(om/set-state! owner :cases-page page-i)}
+                  (str (inc page-i))]])]]]]]]))))
 
 (defcomponent solvings-panel [{:keys [solvings]}]
   (render [_]
