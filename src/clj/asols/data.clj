@@ -79,8 +79,8 @@
     (5% class noise added to the training set)"
   (parse-monks-dataset "monks-3_learn.tab" "monks-3_test.tab"))
 
-(defn random-split
-  "(random-split [0 1 2 3 4 5] 1/5) -> [[0][1 2 3 4 5]"
+(defn split-proportion
+  "(split-proportion [0 1 2 3 4 5] 1/5) -> [[0][1 2 3 4 5]"
   [coll proportion]
   (let [index (Math/floor (* proportion (count coll)))]
     (split-at index coll)))
@@ -138,20 +138,25 @@
                           (map line->entry))]
     (->Dataset (vec train-entries) (vec test-entries) (* 48 48) 7)))
 
+(defn get-yale-entries
+  [file]
+  (for [line (read-dataset file)
+        :let [pixels (map #(Double/parseDouble %) (butlast line))
+              target-class (Integer/parseInt (last line))]]
+    (entry (array pixels) (class-vec target-class 10 1))))
+
 (defn parse-yale-dataset
-  [dataset-file]
-  (let [out-count 5
-        entries (for [line (read-dataset dataset-file)
-                      :let [pixels (map #(Double/parseDouble %) (butlast line))
-                            target-class (Integer/parseInt (last line))]]
-                  (entry (array pixels) (class-vec target-class out-count 1)))
-        [train-entries test-entries] (random-split entries 0.7)]
-    (->Dataset train-entries test-entries (* 26 26) out-count)))
+  [train-file test-file]
+  (->Dataset
+    (get-yale-entries train-file)
+    (get-yale-entries test-file)
+    (* 26 26)
+    10))
 
 (def datasets
   {::monks1     monks1
    ::monks2     monks2
    ::monks3     monks3
    ::twospirals twospirals
-   ::yale       (parse-yale-dataset "yale.tab")})
+   ::yale       (parse-yale-dataset "yale-train.tab" "yale-test.tab")})
 

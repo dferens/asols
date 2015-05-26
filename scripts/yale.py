@@ -16,8 +16,9 @@ from os import path
 
 from PIL import Image
 
-SUBJECTS_COUNT = 5
-IMAGES_PER_SUBJECT = 20
+SUBJECTS_COUNT = 10
+IMAGES_PER_SUBJECT = 30
+TRAIN_SIZE = (SUBJECTS_COUNT * IMAGES_PER_SUBJECT) * 2 / 3
 FINAL_SIZE = (26, 26)
 
 filename_regexp = re.compile(
@@ -49,9 +50,20 @@ def get_files(subj_dir, images_per_subj):
     file_names = [x[0] for x in data[:images_per_subj]]
     return [(subj_dir, x) for x in file_names]
 
+def write_images(file_name, rows, pixels_count):
+    with open(file_name, 'wb') as result_file:
+        writer = csv.writer(result_file, delimiter='\t')
+
+        writer.writerow(['p%d' % i for i in xrange(pixels_count)] +
+                        ['subject'])
+        writer.writerow(['c' for i in xrange(pixels_count)] + ['d'])
+        writer.writerow(['' for i in xrange(pixels_count)] + ['class'])
+        for row in rows:
+            writer.writerow(row)
+
 def main(args):
-    source_dir = args[0]#path.abspath(args[0])
-    target_file = args[1]
+    source_dir = args[0]
+    target_dir = args[1]
     pixels_count = FINAL_SIZE[0] * FINAL_SIZE[1]
     subject_dirs = [path.join(source_dir, 'yaleB%.2d' % i)
                     for i in xrange(1, SUBJECTS_COUNT + 1)]
@@ -72,16 +84,11 @@ def main(args):
             rows.append(pixels + [subject_id])
 
     random.shuffle(rows)
-
-    with open(target_file, 'wb') as result_file:
-        writer = csv.writer(result_file, delimiter='\t')
-
-        writer.writerow(['p%d' % i for i in xrange(pixels_count)] +
-                        ['subject'])
-        writer.writerow(['c' for i in xrange(pixels_count)] + ['d'])
-        writer.writerow(['' for i in xrange(pixels_count)] + ['class'])
-        for row in rows:
-            writer.writerow(row)
+    train_rows, test_rows = rows[:TRAIN_SIZE], rows[TRAIN_SIZE:]
+    train_file = path.join(target_dir, 'yale-train.tab')
+    test_file = path.join(target_dir, 'yale-test.tab')
+    write_images(train_file, train_rows, pixels_count)
+    write_images(test_file, test_rows, pixels_count)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
