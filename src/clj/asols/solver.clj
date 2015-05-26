@@ -45,9 +45,17 @@
     ::commands/regression (->RegressionSolver t-opts m-opts)
     ::commands/classification (->ClassificationSolver t-opts m-opts)))
 
-(defn get-dataset
+(defn get-train-validation-entries
   [solver]
-  (get data/datasets (:dataset (:mutation-opts solver))))
+  (let [dataset (data/datasets (:dataset (:mutation-opts solver)))
+        [train _] (data/split-proportion (:train dataset) 3/4)]
+    [train (:train dataset)]))
+
+(defn get-test-entries
+  [solver]
+  (-> (:dataset (:mutation-opts solver))
+      (data/datasets)
+      (:test)))
 
 (defn- make-solving
   [solver net best-case other-cases ms-took]
@@ -74,10 +82,10 @@
   "Most important fn here.
   Tests given mutation"
   [{:keys [train-opts] :as solver} prev-net mutation]
-  (let [dataset (get-dataset solver)
-        entries [(:train dataset) (:test dataset)]
+  (let [[train-e validation-e] (get-train-validation-entries solver)
+        entries [validation-e (get-test-entries solver)]
         mutated-net (m/mutate prev-net mutation)
-        new-net (trainer/train mutated-net (:train dataset) train-opts)
+        new-net (trainer/train mutated-net train-e train-opts)
         [train-cost test-cost] (map #(trainer/calc-cost new-net %) entries)
         [train-metrics test-metrics] (map #(get-metrics solver new-net %) entries)]
     (commands/->SolvingCase
@@ -102,7 +110,7 @@
 
 (defn- make-combined-cases
   [solver net cases]
-  (let [select-count 5
+  (let [select-count 10
         selected-cases (->> cases
                             (sort-cases)
                             (take-while #(not= ::m/identity (:operation (:mutation %))))
@@ -143,18 +151,18 @@
       (debug "Detected thread interrupt"))))
 
 (defn create-start-net
-  [{:keys [mutation-opts] :as solver}]
+  [{:keys [mutation-opts]}]
   (let [{:keys [hidden-type out-type hidden-count]} mutation-opts
-        dataset (get-dataset solver)]
+        dataset (data/datasets (:dataset mutation-opts))]
     (-> (network/for-dataset dataset out-type)
         (network/insert-layer 1 hidden-type hidden-count))))
 
 (defn create-initial-case
   [{:keys [train-opts] :as solver}]
   (let [net (create-start-net solver)
-        trained-net (trainer/train net (:train (get-dataset solver)) train-opts)
-        mutation (first (m/identity-mutations trained-net))]
-    (solve-mutation solver trained-net mutation)))
+        ;trained-net (trainer/train net (:train (get-train-entries solver)) train-opts)
+        mutation (first (m/identity-mutations net))]
+    (solve-mutation solver net mutation)))
 
 (defn solver-loop
   [solver out-chan abort-chan]
