@@ -1,51 +1,91 @@
 (ns asols.client.stats
   (:require [om.core :as om]
+            [om.dom :refer [render-to-str]]
             [om-tools.core :refer-macros [defcomponent]]
             [sablono.core :refer-macros [html]]
             [asols.client.solvings :refer [solving-block mutation-view]]
             [asols.client.widgets :as widgets]
-            [asols.client.utils :refer [debug]]))
+            [asols.client.utils :refer [debug format]]))
 
-(defn test-value-serie
-  [solvings]
-  (->> (map :best-case solvings)
-       (map :test-cost)))
+(defn- format-cost [val]
+  (js/parseFloat (format "%.4f" val)))
 
-(defn train-value-serie
+(defn- costs-chart-config
   [solvings]
-  (->> (map :best-case solvings)
-       (map :train-cost)))
-
-(defn- errors-chart-config
-  [solvings]
-  {:chart {:type "spline"
-           :height "400"}
-   :title {:text "Test & train errors"}
-   :xAxis {:minorTickInterval 1
-           :tickInterval 1}
-   :yAxis {:title {:text "Error"}
-           :type "logarithmic"
-           :maxPadding 0}
-   :tooltip {:headerFormat "<b>{series.name}</b><br/>"}
-   :plotOptions {:line {:dataLabels {:enabled true}
+  {:chart       {:type   "line"
+                 :height "400"}
+   :title       {:text "Cost"}
+   :xAxis       {:minorTickInterval 1
+                 :tickInterval      1
+                 :categories        (for [i (range (count solvings))]
+                                      (format "Solving %d" (inc i)))}
+   :yAxis       {:title      {:text "Cost"}
+                 :maxPadding 0}
+   :plotOptions {:line {:dataLabels          {:enabled true}
                         :enableMouseTracking false}}
-   :series [{:name "Train error" :data (train-value-serie solvings)}
-            {:name "Test error" :data (test-value-serie solvings)}]})
+   :tooltip     {:shared       true
+                 :useHTML      true
+                 :headerFormat "<b>{point.key}</b><br/>"
+                 :pointFormat "<span style=\"color:{point.color}\">\u25CF</span> {series.name}: <b>{point.y}</b><br/>"}
+   :series      [{:name "Train cost"
+                  :data (for [s solvings]
+                          (format-cost (:train-cost (:best-case s))))}
+                 {:name "Test cost"
+                  :data (for [s solvings]
+                          (format-cost (:test-cost (:best-case s))))}]})
 
-(defcomponent errors-chart [{solvings :solvings}]
+(defn- format-ca [val]
+  (js/parseFloat (format "%.2f" (* 100 val))))
+
+(defn- ca-chart-config
+  [solvings]
+  {:chart       {:type   "line"
+                 :height "500"}
+   :title       {:text "CA"}
+   :xAxis       {:categories        (for [i (range (count solvings))]
+                                      (format "Solving %d" (inc i)))}
+   :yAxis       {:title      {:text "CA, %"}
+                 :maxPadding 0
+                 :tickInterval 1.0}
+   :plotOptions {:line {:dataLabels          {:enabled true}
+                        :enableMouseTracking false}}
+   :tooltip     {:shared       true
+                 :useHTML      true
+                 :headerFormat "<b>{point.key}</b><br/>"
+                 :pointFormat "<span style=\"color:{point.color}\">\u25CF</span> {series.name}: <b>{point.y}</b><br/>"}
+   :series      [{:name "Train CA"
+                  :data (for [s solvings]
+                          (format-ca (:train-metrics (:best-case s))))}
+                 {:name "Test CA"
+                  :data (for [s solvings]
+                          (format-ca (:test-metrics (:best-case s))))}]})
+
+(defcomponent cost-chart [{solvings :solvings}]
   (render [_]
-    (om/build widgets/highchart (errors-chart-config solvings))))
+    (om/build widgets/highchart (costs-chart-config solvings))))
 
-(defcomponent stats-panel [{:keys [progress solvings]}]
+(defcomponent ca-chart [{solvings :solvings}]
   (render [_]
-    (html
-      [:.panel.panel-success
-       [:.panel-heading "Stats"]
-       [:.panel-body
-        (when progress
-          [:.row-fluid
-           [:.col-sm-12
-            [:p "Current mutation: " [:b (mutation-view (:mutation progress))]]
-            (widgets/progress-bar (:value progress))]])
+    (om/build widgets/highchart (ca-chart-config solvings))))
 
-        (om/build errors-chart {:solvings solvings})]])))
+(defcomponent stats-panel [{:keys [progress solvings settings]}]
+  (render [_]
+    (let [ca-enabled? (= (:mode (:mutation-opts settings)) :asols.commands/classification)]
+      (html
+       [:.panel.panel-success
+        [:.panel-heading "Stats"]
+        [:.panel-body
+         (when progress
+           [:.row-fluid
+            [:.col-sm-12
+             [:p "Current mutation: " [:b (mutation-view (:mutation progress))]]
+             (widgets/progress-bar (:value progress))]])
+
+         [:.row
+          [:.col-md-12
+           (om/build cost-chart {:solvings solvings})]]
+
+         [:.row
+          (when ca-enabled?
+            [:.col-md-12
+             (om/build ca-chart {:solvings solvings})])]]]))))

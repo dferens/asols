@@ -26,10 +26,10 @@
   (atom {:connection nil
          :running? false
          :progress nil
-         :settings {:train-opts (cmd/train-opts :learning-rate 0.2
-                                                :momentum 0.6
-                                                :l2-lambda 0.1
-                                                :iter-count 100)
+         :settings {:train-opts (cmd/train-opts :learning-rate 0.005
+                                                :momentum 0.9
+                                                :l2-lambda 0.2
+                                                :iter-count 15)
                     :mutation-opts (cmd/mutation-opts :mode ::cmd/classification)
                     :hidden-types []
                     :out-types []
@@ -141,7 +141,8 @@
        [:.row-fluid
         [:.col-md-12
          (om/build stats-panel {:progress progress
-                                :solvings solvings})]]])))
+                                :solvings solvings
+                                :settings settings})]]])))
 
 (defn- launch []
   (debug "Starting app...")

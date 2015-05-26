@@ -106,6 +106,7 @@
           chart (om/get-state owner :chart-obj)]
       (when (not= config next-config)
         (debug "Updating chart")
+        (.setCategories (aget chart "xAxis" 0) (clj->js (:categories (:xAxis next-config))))
         (doseq [serie-i (range (count (:series next-config)))]
           (let [new-serie (nth (:series next-config) serie-i)]
             (-> chart
@@ -113,8 +114,9 @@
                 (.setData (clj->js (:data new-serie)))))))))
 
   (will-unmount [_]
-    (debug "Destroying chart")
-    (.destroy (om/get-state owner :chart-obj)))
+    (when-let [chart-obj (om/get-state owner :chart-obj)]
+      (debug "Destroying chart")
+      (.destroy chart-obj)))
 
   (render [_]
     (html

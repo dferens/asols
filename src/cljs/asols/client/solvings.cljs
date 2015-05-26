@@ -88,7 +88,7 @@
           {:keys [body]} (<! (http/post "/render-network/" params))]
       body)))
 
-(def ^:private cases-per-page 10)
+(def ^:private cases-per-page 20)
 
 (defn get-page [coll page-size page-num]
   (->> coll
