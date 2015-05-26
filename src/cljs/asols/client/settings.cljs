@@ -78,26 +78,31 @@
             [:.col-sm-4
              [:label.control-label "Output layer"]]
             [:.col-sm-8
-             (om/build widgets/select {:cursor settings
-                                       :path [:mutation-opts :out-type]
+             (om/build widgets/select {:cursor settings :path [:mutation-opts :out-type]
                                        :choices (:out-types settings)
                                        :clean-fn str->keyword})]]
+
            [:.form-group
-            [:.col-xs-4
-             (om/build widgets/checkbox {:cursor settings
-                                         :path [:mutation-opts :remove-edges?]
-                                         :label "Drop edges?"})]
-            [:.col-xs-4
-             (om/build widgets/checkbox {:cursor settings
-                                         :path [:mutation-opts :remove-nodes?]
+            [:.col-xs-6
+             (om/build widgets/checkbox {:cursor settings :path [:mutation-opts :add-nodes?]
+                                         :label "Add nodes?"})]
+            [:.col-xs-6
+             (om/build widgets/checkbox {:cursor settings :path [:mutation-opts :add-edges?]
+                                         :label "Add edges?"})]]
+           [:.form-group
+            [:.col-xs-6
+             (om/build widgets/checkbox {:cursor settings :path [:mutation-opts :remove-nodes?]
                                          :label "Drop nodes?"})]
-            [:.col-xs-4
-             (om/build widgets/checkbox {:cursor settings
-                                         :path [:mutation-opts :add-layers?]
+            [:.col-xs-6
+             (om/build widgets/checkbox {:cursor settings :path [:mutation-opts :remove-edges?]
+                                         :label "Drop edges?"})]]
+
+           [:.form-group
+            [:.col-xs-12
+             (om/build widgets/checkbox {:cursor settings :path [:mutation-opts :add-layers?]
                                          :label "Add layers?"})]]
 
-           (om/build widgets/radio {:cursor settings
-                                    :path [:mutation-opts :mode]
+           (om/build widgets/radio {:cursor settings :path [:mutation-opts :mode]
                                     :choices [["Classification" ::commands/classification]
                                               ["Regression" ::commands/regression]]
                                     :clean-fn str->keyword})]]]]])))

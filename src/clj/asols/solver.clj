@@ -68,15 +68,14 @@
 
 (defn- get-mutations
   "Returns sequence of all available network mutations."
-  [{:keys [mutation-opts]} net]
-  (let [{:keys [remove-nodes? remove-edges? add-layers?]} mutation-opts]
-    (concat
-      (m/identity-mutations net)
-      (m/add-edge-mutations net)
-      (m/add-node-mutations net)
-      (when remove-nodes? (m/del-node-mutations net))
-      (when remove-edges? (m/del-edge-mutations net))
-      (when add-layers? (m/add-layers-mutations net)))))
+  [{m-opts :mutation-opts} net]
+  (concat
+    (m/identity-mutations net)
+    (when (:add-edges? m-opts) (m/add-edge-mutations net))
+    (when (:add-nodes? m-opts) (m/add-node-mutations net))
+    (when (:remove-nodes? m-opts) (m/del-node-mutations net))
+    (when (:remove-edges? m-opts) (m/del-edge-mutations net))
+    (when (:add-layers? m-opts) (m/add-layers-mutations net))))
 
 (defn solve-mutation
   "Most important fn here.

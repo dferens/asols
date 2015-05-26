@@ -25,17 +25,26 @@
 (defrecord MutationOpts [mode dataset
                          hidden-type hidden-count
                          out-type
-                         remove-edges? remove-nodes? add-layers?])
+                         add-nodes? add-edges?
+                         remove-nodes? remove-edges?
+                         add-layers?])
 
 (defn mutation-opts
   [& {:keys [mode dataset hidden-type hidden-count out-type
-             remove-edges? remove-nodes? add-layers?]
+             add-nodes? add-edges? add-layers?
+             remove-edges? remove-nodes?]
       :or {hidden-count 1
+           add-nodes? true
+           add-edges? true
            remove-edges? true
            remove-nodes? true
            add-layers? false}}]
-  (->MutationOpts mode dataset hidden-type hidden-count out-type
-                  remove-edges? remove-nodes? add-layers?))
+  (->MutationOpts mode dataset
+                  hidden-type hidden-count
+                  out-type
+                  add-nodes? add-edges?
+                  remove-edges? remove-nodes?
+                  add-layers?))
 
 (defrecord SolvingCase [mode net mutation
                         train-cost test-cost
