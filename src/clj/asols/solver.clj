@@ -48,7 +48,7 @@
 (defn get-train-validation-entries
   [solver]
   (let [dataset (data/datasets (:dataset (:mutation-opts solver)))
-        [train _] (data/split-proportion (:train dataset) 3/4)]
+        [train _] (data/split-proportion (:train dataset) 2/3)]
     [train (:train dataset)]))
 
 (defn get-test-entries
@@ -108,12 +108,11 @@
         mutations))))
 
 (defn- make-combined-cases
-  [solver net cases]
-  (let [select-count 10
-        selected-cases (->> cases
+  [{m-opts :mutation-opts :as solver} net cases]
+  (let [selected-cases (->> cases
                             (sort-cases)
                             (take-while #(not= ::m/identity (:operation (:mutation %))))
-                            (take select-count))]
+                            (take (:max-combined-count m-opts)))]
     (for [select-count (range 2 (inc (count selected-cases)))
           :let [merge-cases (take select-count selected-cases)
                 mutation (m/combined-mutation (map :mutation merge-cases))]]
@@ -157,15 +156,18 @@
         (network/insert-layer 1 hidden-type hidden-count))))
 
 (defn create-initial-case
-  [{:keys [train-opts] :as solver}]
+  [{t-opts :train-opts m-opts :mutation-opts :as solver}]
   (let [net (create-start-net solver)
-        ;trained-net (trainer/train net (:train (get-train-entries solver)) train-opts)
-        mutation (first (m/identity-mutations net))]
-    (solve-mutation solver net mutation)))
+        [train-e _] (get-train-validation-entries solver)
+        initial-train-opts (assoc t-opts :iter-count (:initial-iter-count m-opts))
+        trained-net (trainer/train net train-e initial-train-opts)
+        mutation (first (m/identity-mutations trained-net))]
+    (solve-mutation solver trained-net mutation)))
 
 (defn solver-loop
   [solver out-chan abort-chan]
-  (cpool/with-shutdown! [tpool (cpool/threadpool (cpool/ncpus))]
+  (cpool/with-shutdown!
+    [tpool (cpool/threadpool (cpool/ncpus))]
     (loop [current-case (create-initial-case solver)]
       (let [current-net (:net current-case)
             solving-chan (go (solve-net solver current-net out-chan tpool))

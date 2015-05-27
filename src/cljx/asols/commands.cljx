@@ -15,33 +15,40 @@
              in-node-prob hidden-node-prob]
       :or {learning-rate 0.1
            momentum 0.9
-           l2-lambda 0.01
-           iter-count 100
+           l2-lambda 0.1
+           iter-count 20
            in-node-prob 1
            hidden-node-prob 1}}]
   (->TrainOpts learning-rate momentum l2-lambda iter-count
                in-node-prob hidden-node-prob))
 
-(defrecord MutationOpts [mode dataset
+(defrecord MutationOpts [mode dataset initial-iter-count
                          hidden-type hidden-count
                          out-type
+                         max-combined-count
                          add-nodes? add-edges?
                          remove-nodes? remove-edges?
                          add-layers?])
 
 (defn mutation-opts
-  [& {:keys [mode dataset hidden-type hidden-count out-type
+  [& {:keys [mode dataset initial-iter-count
+             hidden-type hidden-count
+             out-type
+             max-combined-count
              add-nodes? add-edges? add-layers?
              remove-edges? remove-nodes?]
-      :or {hidden-count 1
+      :or {initial-iter-count 300
+           hidden-count 1
+           max-combined-count 10
            add-nodes? true
            add-edges? true
            remove-edges? true
            remove-nodes? true
            add-layers? false}}]
-  (->MutationOpts mode dataset
+  (->MutationOpts mode dataset initial-iter-count
                   hidden-type hidden-count
                   out-type
+                  max-combined-count
                   add-nodes? add-edges?
                   remove-edges? remove-nodes?
                   add-layers?))

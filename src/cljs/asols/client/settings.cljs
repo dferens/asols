@@ -20,28 +20,25 @@
           [:form.form-horizontal
            [:.form-group
             [:label.control-label.col-sm-4 "Learning rate"]
-            [:.col-sm-8
-             (widgets/input settings [:train-opts :learning-rate] parse-float)]]
+            [:.col-sm-8 (widgets/input settings [:train-opts :learning-rate] parse-float)]]
            [:.form-group
             [:label.control-label.col-sm-4 "Momentum"]
-            [:.col-sm-8
-             (widgets/input settings [:train-opts :momentum] parse-float)]]
+            [:.col-sm-8 (widgets/input settings [:train-opts :momentum] parse-float)]]
            [:.form-group
             [:label.control-label.col-sm-4 "L2 lambda"]
-            [:.col-sm-8
-             (widgets/input settings [:train-opts :l2-lambda] parse-float)]]
+            [:.col-sm-8 (widgets/input settings [:train-opts :l2-lambda] parse-float)]]
            [:.form-group
             [:label.control-label.col-sm-4 "Iterations"]
-            [:.col-sm-8
-             (widgets/input settings [:train-opts :iter-count] parse-int)]]
+            [:.col-sm-8 (widgets/input settings [:train-opts :iter-count] parse-int)]]
+           [:.form-group
+            [:label.control-label.col-sm-4 "Pretrain iter count"]
+            [:.col-sm-8 (widgets/input settings [:mutation-opts :initial-iter-count] parse-int)]]
            [:.form-group
             [:label.control-label.col-sm-4 "Input node prob."]
-            [:.col-sm-8
-             (widgets/input settings [:train-opts :in-node-prob] parse-float)]]
+            [:.col-sm-8 (widgets/input settings [:train-opts :in-node-prob] parse-float)]]
            [:.form-group
             [:label.control-label.col-sm-4 "Hidden node prob."]
-            [:.col-sm-8
-             (widgets/input settings [:train-opts :hidden-node-prob] parse-float)]]
+            [:.col-sm-8 (widgets/input settings [:train-opts :hidden-node-prob] parse-float)]]
            [:.form-group
             [:.col-sm-8.col-sm-offset-4
              (if running?
@@ -81,6 +78,10 @@
              (om/build widgets/select {:cursor settings :path [:mutation-opts :out-type]
                                        :choices (:out-types settings)
                                        :clean-fn str->keyword})]]
+
+           [:.form-group
+            [:.col-sm-6 [:label.control-label "Max combined count"]]
+            [:.col-sm-6 (widgets/input settings [:mutation-opts :max-combined-count] parse-int)]]
 
            [:.form-group
             [:.col-xs-6
