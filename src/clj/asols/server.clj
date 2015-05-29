@@ -16,7 +16,6 @@
             [asols.solver :as solver]
             [asols.graphics :refer [render-network]]
             [asols.commands :as cmd]
-            [asols.analyzer :refer [analyze]]
             [asols.logs]))
 
 (timbre/refer-timbre)
@@ -42,13 +41,6 @@
       (-> (resp/response "")
           (resp/status 400)))))
 
-(defn analyze-page [req]
-  (let [body (slurp (:body req))
-        {solvings "solvings"} (edn/read-string {:readers readers} body)]
-    (debug (format "Received %d solvings for analyze" (count solvings)))
-    (future (analyze solvings))
-    (resp/response "OK")))
-
 (defn ws-handler [req]
   (with-channel
     req chord-chan
@@ -71,7 +63,6 @@
 
 (defroutes app-routes
   (GET "/" [] index)
-  (POST "/analyze" [] analyze-page)
   (POST "/render-network" [] render-network-page)
   (GET "/ws" [] ws-handler))
 
