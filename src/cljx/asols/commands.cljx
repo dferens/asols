@@ -4,9 +4,6 @@
 (def ^:private commands
   #{::init ::start ::abort ::progress ::step ::finished})
 
-(def modes
-  #{::regression ::classification})
-
 (defrecord TrainOpts [learning-rate momentum l2-lambda iter-count
                       in-node-prob hidden-node-prob])
 
@@ -22,7 +19,7 @@
   (->TrainOpts learning-rate momentum l2-lambda iter-count
                in-node-prob hidden-node-prob))
 
-(defrecord MutationOpts [mode dataset initial-iter-count
+(defrecord MutationOpts [dataset initial-iter-count
                          hidden-type hidden-count
                          out-type
                          max-combined-count
@@ -31,7 +28,7 @@
                          add-layers?])
 
 (defn mutation-opts
-  [& {:keys [mode dataset initial-iter-count
+  [& {:keys [dataset initial-iter-count
              hidden-type hidden-count
              out-type
              max-combined-count
@@ -45,7 +42,7 @@
            remove-edges? true
            remove-nodes? true
            add-layers? false}}]
-  (->MutationOpts mode dataset initial-iter-count
+  (->MutationOpts dataset initial-iter-count
                   hidden-type hidden-count
                   out-type
                   max-combined-count
@@ -53,9 +50,9 @@
                   remove-edges? remove-nodes?
                   add-layers?))
 
-(defrecord SolvingCase [mode net mutation
+(defrecord SolvingCase [net mutation
                         train-cost test-cost
-                        train-metrics test-metrics])
+                        train-ca test-ca])
 
 (defrecord Solving [initial-net train-opts mutation-opts best-case cases ms-took])
 
@@ -82,26 +79,27 @@
 
 #+clj
 (defn- serialize-case [case]
-  {:mode          (:mode case)
-   :mutation      (:mutation case)
-   :train-cost    (:train-cost case)
-   :test-cost     (:test-cost case)
-   :train-metrics (:train-metrics case)
-   :test-metrics  (:test-metrics case)})
+  {:mutation   (:mutation case)
+   :train-cost (:train-cost case)
+   :test-cost  (:test-cost case)
+   :train-ca   (:train-ca case)
+   :test-ca    (:test-ca case)})
 
 #+clj
 (defn- serialize-solving
-  [{:keys [best-case cases ms-took]}]
-  {:best-case (serialize-case best-case)
+  [{:keys [train-opts best-case cases ms-took]}]
+  {:train-opts train-opts
+   :best-case (serialize-case best-case)
    :cases (map serialize-case cases)
    :ms-took ms-took})
 
 #+clj
 (defn step
-  [solving]
+  [solving metrics]
   {:pre [(instance? Solving solving)]}
   {:command ::step
-   :solving (serialize-solving solving)})
+   :solving (serialize-solving solving)
+   :metrics metrics})
 
 #+clj
 (defn finished

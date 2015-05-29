@@ -101,9 +101,4 @@
            [:.form-group
             [:.col-xs-12
              (om/build widgets/checkbox {:cursor settings :path [:mutation-opts :add-layers?]
-                                         :label "Add layers?"})]]
-
-           (om/build widgets/radio {:cursor settings :path [:mutation-opts :mode]
-                                    :choices [["Classification" ::commands/classification]
-                                              ["Regression" ::commands/regression]]
-                                    :clean-fn str->keyword})]]]]])))
+                                         :label "Add layers?"})]]]]]]])))

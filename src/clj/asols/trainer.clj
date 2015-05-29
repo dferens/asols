@@ -265,33 +265,25 @@
                  new-delta-w))))))
 
 (defn train
-  "Trains given network on a dataset during multiple epochs,
-  returns new net."
-  [start-net entries t-opts]
-  {:pre [(not (empty? entries))
-         (instance? TrainOpts t-opts)]}
-  (loop [net start-net
-         iter-i 0]
-    (if (< iter-i (:iter-count t-opts))
-      (let [new-net (train-epoch net entries t-opts)]
-        (recur new-net (inc iter-i)))
-      net)))
-
-(defn train-map
-  "Trains given network on a dataset during multiple epochs,
-  returns new net."
-  [start-net entries t-opts net-fn]
-  {:pre [(not (empty? entries))
-         (instance? TrainOpts t-opts)]}
-  (loop [net start-net
-         iter-i 0
-         vals (transient [])]
-    (if (< iter-i (:iter-count t-opts))
-      (let [new-net (train-epoch net entries t-opts)]
-        (recur new-net
-               (inc iter-i)
-               (conj! vals (net-fn new-net))))
-      (persistent! vals))))
+  "Trains given network on a dataset during multiple epochs.
+  If net-fn was given, returns vector of trained net and (map net-fn trained-networks),
+  otherwise returns trained net."
+  ([start-net entries t-opts]
+    (train start-net entries t-opts nil))
+  ([start-net entries t-opts net-fn]
+   {:pre [(not (empty? entries))
+          (instance? TrainOpts t-opts)
+          (or (nil? net-fn) (fn? net-fn))]}
+   (loop [net start-net
+          iter-i 0
+          results (transient [])]
+     (if (< iter-i (:iter-count t-opts))
+       (let [new-net (train-epoch net entries t-opts)
+             result (if (nil? net-fn) nil (net-fn new-net))]
+         (recur new-net (inc iter-i) (conj! results result)))
+       (if (nil? net-fn)
+         net
+         [net (persistent! results)])))))
 
 (defn- calc-distance-error-entry
   "Calculates error on single dataset entry for given network"

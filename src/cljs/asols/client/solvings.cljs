@@ -50,29 +50,6 @@
   [ca-val]
   (format "%.2f" ca-val))
 
-(def default-case-headers ["Mutation" "Train cost" "Test cost"])
-
-(defn- default-case-data
-  [case]
-  [(mutation-view (:mutation case))
-   (format-cost (:train-cost case))
-   (format-cost (:test-cost case))])
-
-(defmulti case-headers :mode)
-(defmethod case-headers :default [_] default-case-headers)
-(defmethod case-headers :asols.commands/classification [_]
-  (concat default-case-headers ["Train CA" "Test CA"]))
-
-(defmulti case-data :mode)
-(defmethod case-data :default [case] (default-case-data case))
-(defmethod case-data :asols.commands/classification
-  [{:keys [train-metrics test-metrics] :as case}]
-  (let [[train-ca test-ca] (map #(* 100 %) [train-metrics test-metrics])]
-    (concat
-      (default-case-data case)
-      [(format-ca train-ca)
-       (format-ca test-ca)])))
-
 (defn format-time [ms-took]
   (condp > ms-took
     1E3 (str (int ms-took) " ms")
@@ -106,10 +83,12 @@
 (defcomponent solving-case-block [{:keys [case best?]}]
   (render [_]
     (html
-      [:tr
-       {:class    (when best? "success")}
-       (for [val (case-data case)]
-         [:td val])])))
+      [:tr {:class (when best? "success")}
+       [:td (mutation-view (:mutation case))]
+       [:td (format-cost (:train-cost case))]
+       [:td (format-cost (:test-cost case))]
+       [:td (format-ca (* 100 (:train-ca case)))]
+       [:td (format-ca (* 100 (:test-ca case)))]])))
 
 (defcomponent solving-block [{:keys [number solving visible?]
                               :or {visible? false}}
@@ -122,18 +101,17 @@
     (html
       (let [{:keys [cases best-case ms-took]} solving
             all-cases (into [best-case] cases)
-            visible-cases (get-page all-cases cases-per-page cases-page)
-            [mutation train-cost test-cost] (default-case-data best-case)]
+            visible-cases (get-page all-cases cases-per-page cases-page)]
         [:li.list-group-item.solving
          [:.row {:on-click #(om/update-state! owner :visible? not)}
           [:.col-xs-12
            [:span
             (format "%d. " number)
-            mutation]
+            (mutation-view (:mutation best-case))]
            [:span.label.label-danger.pull-right
-            "Test " test-cost]
+            "Test " (format-cost (:test-cost best-case))]
            [:span.label.label-warning.pull-right
-            "Train " train-cost]
+            "Train " (format-cost (:train-cost best-case))]
            [:span.label.label-default.pull-right
             (format-time ms-took)]]]
          [:.row {:class (when-not visible? "hidden")}
@@ -141,8 +119,9 @@
            [:.row
             [:.col-xs-12
              [:table.table.table-condensed.table-hover
-              [:thead [:tr (for [h (case-headers best-case)]
-                             [:th h])]]
+              [:thead
+               [:tr
+                [:th "Mutation"] [:th "Train cost"] [:th "Test cost"] [:th "Train CA"] [:th "Test CA"]]]
               [:tbody
                (for [case visible-cases]
                  (om/build solving-case-block {:case case :best? (= case best-case)}))]]]]

@@ -1,5 +1,6 @@
 (ns asols.solver
   (:require [clojure.core.async :refer [<! >! >!! chan alts!! go go-loop]]
+            [clojure.core.matrix :refer [transpose join-along]]
             [clojure.core.matrix.stats :refer [mean variance]]
             [com.climate.claypoole :as cpool]
             [taoensso.timbre :as timbre]
@@ -19,18 +20,6 @@
          elapsed# (/ (double (- (System/nanoTime) start#)) 1000000.0)]
      [ret# elapsed#]))
 
-(defprotocol SolverProtocol
-  (get-metrics [this net entries]))
-
-(defrecord ClassificationSolver [train-opts mutation-opts]
-  SolverProtocol
-  (get-metrics [_ net entries]
-    (trainer/calc-ca net entries)))
-
-(defrecord RegressionSolver [train-opts mutation-opts]
-  SolverProtocol
-  (get-metrics [_ _ _] nil))
-
 (defn- converged?
   [_ solving]
   (< (:train-cost (:best-case solving))
@@ -41,21 +30,24 @@
 
 (defn create-solver
   [t-opts m-opts]
-  (case (:mode m-opts)
-    ::commands/regression (->RegressionSolver t-opts m-opts)
-    ::commands/classification (->ClassificationSolver t-opts m-opts)))
+  {:train-opts t-opts
+   :mutation-opts m-opts})
 
-(defn get-train-validation-entries
-  [solver]
-  (let [dataset (data/datasets (:dataset (:mutation-opts solver)))
-        [train _] (data/split-proportion (:train dataset) 2/3)]
-    [train (:train dataset)]))
+(defn- get-dataset [solver]
+  (data/datasets (:dataset (:mutation-opts solver))))
+
+
+(defn- get-train-entries [solver]
+  (-> (:train (get-dataset solver))
+      (data/split-proportion 2/3)
+      (first)))
+
+(defn- get-validation-entries [solver]
+  (:train (get-dataset solver)))
 
 (defn get-test-entries
   [solver]
-  (-> (:dataset (:mutation-opts solver))
-      (data/datasets)
-      (:test)))
+  (:test (get-dataset solver)))
 
 (defn- make-solving
   [solver net best-case other-cases ms-took]
@@ -77,21 +69,27 @@
     (when (:remove-edges? m-opts) (m/del-edge-mutations net))
     (when (:add-layers? m-opts) (m/add-layers-mutations net))))
 
+(defn- calc-metrics
+  "Returns vector of train cost, test cost, train ca and test ca."
+  [solver net]
+  (let [validation-e (get-validation-entries solver)
+        test-entries (get-test-entries solver)]
+    [(trainer/calc-cost net validation-e)
+     (trainer/calc-cost net test-entries)
+     (trainer/calc-ca net validation-e)
+     (trainer/calc-ca net test-entries)]))
+
 (defn solve-mutation
   "Most important fn here.
   Tests given mutation"
   [{:keys [train-opts] :as solver} prev-net mutation]
-  (let [[train-e validation-e] (get-train-validation-entries solver)
-        entries [validation-e (get-test-entries solver)]
-        mutated-net (m/mutate prev-net mutation)
-        new-net (trainer/train mutated-net train-e train-opts)
-        [train-cost test-cost] (map #(trainer/calc-cost new-net %) entries)
-        [train-metrics test-metrics] (map #(get-metrics solver new-net %) entries)]
+  (let [mutated-net (m/mutate prev-net mutation)
+        trained-net (trainer/train mutated-net (get-train-entries solver) train-opts)
+        [train-cost test-cost train-ca test-ca] (calc-metrics solver trained-net)]
     (commands/->SolvingCase
-      (:mode (:mutation-opts solver))
-      new-net mutation
+      trained-net mutation
       train-cost test-cost
-      train-metrics test-metrics)))
+      train-ca test-ca)))
 
 (defn- solve-mutations
   "Solves mutations in parallel using given thread pool.
@@ -155,38 +153,62 @@
     (-> (network/for-dataset dataset out-type)
         (network/insert-layer 1 hidden-type hidden-count))))
 
-(defn create-initial-case
-  [{t-opts :train-opts m-opts :mutation-opts :as solver}]
+(defn- get-initial-train-opts
+  [{t-opts :train-opts m-opts :mutation-opts}]
+  (assoc t-opts :iter-count (:initial-iter-count m-opts)))
+
+(defn create-initial-solving [solver]
   (let [net (create-start-net solver)
-        [train-e _] (get-train-validation-entries solver)
-        initial-train-opts (assoc t-opts :iter-count (:initial-iter-count m-opts))
-        trained-net (trainer/train net train-e initial-train-opts)
-        mutation (first (m/identity-mutations trained-net))]
-    (solve-mutation solver trained-net mutation)))
+        train-opts (get-initial-train-opts solver)
+        trained-net (trainer/train net (get-train-entries solver) train-opts)
+        mutation (first (m/identity-mutations net))
+        [train-cost test-cost train-ca test-ca] (calc-metrics solver trained-net)
+        case (commands/->SolvingCase trained-net mutation train-cost test-cost train-ca test-ca)]
+    (commands/->Solving net
+                        train-opts
+                        (:mutation-opts solver)
+                        case
+                        nil
+                        0)))
+
+(defn- calc-static-metrics
+  [solver net iter-count]
+  (let [train-e (get-train-entries solver)
+        train-opts (assoc (:train-opts solver) :iter-count iter-count)
+        [_ results] (trainer/train net train-e train-opts #(calc-metrics solver %))]
+    (for [metrics-serie (transpose results)]
+      (into {} (for [[i val] (map-indexed vector metrics-serie)]
+                 [(inc i) val])))))
 
 (defn solver-loop
   [solver out-chan abort-chan]
-  (cpool/with-shutdown!
-    [tpool (cpool/threadpool (cpool/ncpus))]
-    (loop [current-case (create-initial-case solver)]
-      (let [current-net (:net current-case)
-            solving-chan (go (solve-net solver current-net out-chan tpool))
-            [val ch] (alts!! [abort-chan solving-chan])]
-        (when (not= ch abort-chan)
-          (let [new-solving val
-                better? (< (:train-cost (:best-case new-solving))
-                           (:train-cost current-case))
-                best? (converged? solver new-solving)]
-            (if better?
-              (do
-                (>!! out-chan (commands/step new-solving))
-                (debug "Sent step")
-                (if best?
-                  (when (>!! out-chan (commands/finished))
-                    (debug "Finished, found best solution"))
-                  (recur (:best-case new-solving))))
-              (when (>!! out-chan (commands/finished new-solving))
-                (debug "Finished, could not find better solution")))))))))
+  (let [initial-solving (create-initial-solving solver)
+        initial-static-net (:net (:best-case initial-solving))]
+    (cpool/with-shutdown!
+      [tpool (cpool/threadpool (cpool/ncpus))]
+      (loop [current-solving initial-solving
+             iter-count 0]
+        (let [current-net (:net (:best-case current-solving))
+              solving-chan (go (solve-net solver current-net out-chan tpool))
+              [val ch] (alts!! [abort-chan solving-chan])]
+          (when (not= ch abort-chan)
+            (let [new-solving val
+                  better? (< (:train-cost (:best-case new-solving))
+                             (:train-cost (:best-case current-solving)))
+                  best? (converged? solver new-solving)
+                  new-iter-count (+ iter-count (:iter-count (:train-opts new-solving)))
+                  metrics (calc-static-metrics solver initial-static-net new-iter-count)]
+              (if better?
+                (do
+                  (>!! out-chan (commands/step new-solving metrics))
+                  (debug "Sent step")
+                  (if best?
+                    (when (>!! out-chan (commands/finished))
+                      (debug "Finished, found best solution"))
+                    (recur new-solving
+                           new-iter-count)))
+                (when (>!! out-chan (commands/finished new-solving))
+                  (debug "Finished, could not find better solution"))))))))))
 
 (defn init [in-chan out-chan]
   (let [abort-chan (chan)

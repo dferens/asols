@@ -30,11 +30,12 @@
                                                 :momentum 0.9
                                                 :l2-lambda 0.2
                                                 :iter-count 15)
-                    :mutation-opts (cmd/mutation-opts :mode ::cmd/classification)
+                    :mutation-opts (cmd/mutation-opts)
                     :hidden-types []
                     :out-types []
                     :datasets []}
          :solvings []
+         :metrics nil
          :failed-solving nil}))
 
 (defn- send-cmd
@@ -62,16 +63,19 @@
   (assoc app :running? true
              :solvings []
              :failed-solving nil
-             :progress nil))
+             :progress nil
+             :metrics nil))
 
 (defn update-progress [app mutation progress-value]
   (if (:running? app)
     (assoc app :progress {:mutation mutation :value progress-value})
     app))
 
-(defn new-solving [app solving]
+(defn new-solving [app solving metrics]
   (if (:running? app)
-    (update-in app [:solvings] conj solving)
+    (-> app
+        (assoc :metrics metrics)
+        (update-in [:solvings] conj solving))
     app))
 
 (defn finish [app failed-solving]
@@ -85,7 +89,7 @@
   (send-cmd app (cmd/abort))
   (assoc app :running? false :progress nil))
 
-(defcomponent app [{:keys [settings running? progress solvings] :as cursor} owner]
+(defcomponent app [{:keys [settings running? progress solvings metrics] :as cursor} owner]
   (init-state [_]
     {:start-chan (chan)
      :abort-chan (chan)})
@@ -113,7 +117,7 @@
                          (om/transact! cursor #(update-progress % (:mutation m) (:value m)))
 
                          ::cmd/step
-                         (om/transact! cursor #(new-solving % (:solving m)))
+                         (om/transact! cursor #(new-solving % (:solving m) (:metrics m)))
 
                          ::cmd/finished
                          (om/transact! cursor #(finish % (:solving m))))))
@@ -142,6 +146,7 @@
         [:.col-md-12
          (om/build stats-panel {:progress progress
                                 :solvings solvings
+                                :metrics metrics
                                 :settings settings})]]])))
 
 (defn- launch []

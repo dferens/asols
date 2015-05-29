@@ -7,70 +7,109 @@
             [asols.client.widgets :as widgets]
             [asols.client.utils :refer [debug format]]))
 
-(defn- format-cost [val]
-  (js/parseFloat (format "%.4f" val)))
+(defn- iter-count-serie
+  [solvings]
+  (let [iter-counts (for [{t-opts :train-opts} solvings]
+                      (:iter-count t-opts))]
+    (rest
+      (reduce
+        (fn [result val]
+          (conj result (+ val (last result))))
+        [0]
+        iter-counts))))
+
+(defn- solvings->serie
+  [solvings val-fn]
+  (let [iter-counts (iter-count-serie solvings)]
+    (for [[solving x] (map vector solvings iter-counts)
+         :let [y (val-fn solving)]]
+     [x y])))
 
 (defn- costs-chart-config
-  [solvings]
-  {:chart       {:type   "line"
-                 :height "400"}
-   :title       {:text "Cost"}
-   :xAxis       {:minorTickInterval 1
-                 :tickInterval      1
-                 :categories        (for [i (range (count solvings))]
-                                      (format "Solving %d" (inc i)))}
-   :yAxis       {:title      {:text "Cost"}
-                 :maxPadding 0}
-   :plotOptions {:line {:dataLabels          {:enabled true}
-                        :enableMouseTracking false}}
-   :tooltip     {:shared       true
-                 :useHTML      true
-                 :headerFormat "<b>{point.key}</b><br/>"
-                 :pointFormat "<span style=\"color:{point.color}\">\u25CF</span> {series.name}: <b>{point.y}</b><br/>"}
-   :series      [{:name "Train cost"
-                  :data (for [s solvings]
-                          (format-cost (:train-cost (:best-case s))))}
-                 {:name "Test cost"
-                  :data (for [s solvings]
-                          (format-cost (:test-cost (:best-case s))))}]})
-
-(defn- format-ca [val]
-  (js/parseFloat (format "%.2f" (* 100 val))))
+  [solvings train-values test-values]
+  (let [train-serie (cons [1 (get train-values 1)]
+                          (solvings->serie solvings #(-> % :best-case :train-cost)))
+        test-serie (cons [1 (get test-values 1)]
+                         (solvings->serie solvings #(-> % :best-case :test-cost)))]
+    {:chart       {:type   "scatter"
+                   :height "400"}
+     :title       {:text "Cost"}
+     :xAxis       {:allowDecimals false}
+     :yAxis       {:title      {:text "Cost"}
+                   :maxPadding 0}
+     :plotOptions {:scatter {:lineWidth 1
+                             :marker    {:enabled false}}}
+     :tooltip     {:shared       true
+                   :useHTML      true
+                   :headerFormat "<b>{point.key}</b><br/>"
+                   :pointFormat  "<span style=\"color:{point.color}\">\u25CF</span> {series.name}: <b>{point.y}</b><br/>"}
+     :series      [{:name             "Static train cost"
+                    :data             (->> (sequence train-values)
+                                           (sort-by first))
+                    :color            "red"
+                    :allowPointSelect true}
+                   {:name             "Static test cost"
+                    :data             (->> (sequence test-values)
+                                           (sort-by first))
+                    :color            "red"
+                    :dashStyle        "Dash"
+                    :allowPointSelect true}
+                   {:name   "Train cost"
+                    :data   train-serie
+                    :color  "blue"
+                    :marker {:enabled true :symbol "square"}}
+                   {:name      "Test cost"
+                    :data      test-serie
+                    :color     "blue"
+                    :dashStyle "Dash"
+                    :marker    {:enabled true :symbol "square"}}]}))
 
 (defn- ca-chart-config
-  [solvings]
-  {:chart       {:type   "line"
-                 :height "500"}
-   :title       {:text "CA"}
-   :xAxis       {:categories        (for [i (range (count solvings))]
-                                      (format "Solving %d" (inc i)))}
-   :yAxis       {:title      {:text "CA, %"}
-                 :maxPadding 0
-                 :tickInterval 1.0}
-   :plotOptions {:line {:dataLabels          {:enabled true}
-                        :enableMouseTracking false}}
-   :tooltip     {:shared       true
-                 :useHTML      true
-                 :headerFormat "<b>{point.key}</b><br/>"
-                 :pointFormat "<span style=\"color:{point.color}\">\u25CF</span> {series.name}: <b>{point.y}</b><br/>"}
-   :series      [{:name "Train CA"
-                  :data (for [s solvings]
-                          (format-ca (:train-metrics (:best-case s))))}
-                 {:name "Test CA"
-                  :data (for [s solvings]
-                          (format-ca (:test-metrics (:best-case s))))}]})
+  [solvings train-values test-values]
+  (let [train-serie (cons [1 (get train-values 1)]
+                          (solvings->serie solvings #(-> % :best-case :train-ca)))
+        test-serie (cons [1 (get test-values 1)]
+                         (solvings->serie solvings #(-> % :best-case :test-ca)))]
+    {:chart       {:type   "scatter"
+                   :height "500"}
+     :title       {:text "CA"}
+     :xAxis       {:allowDecimals false}
+     :yAxis       {:title      {:text "CA"}
+                   :maxPadding 0}
+     :plotOptions {:scatter {:lineWidth 1
+                             :marker    {:enabled false}}}
+     :tooltip     {:shared       true
+                   :useHTML      true
+                   :headerFormat "<b>{point.key}</b><br/>"
+                   :pointFormat  "<span style=\"color:{point.color}\">\u25CF</span> {series.name}: <b>{point.y}</b><br/>"}
+     :series      [{:name  "Static train CA"
+                    :data  (sort-by first train-values)
+                    :color "red"}
+                   {:name      "Static test CA"
+                    :data      (sort-by first test-values)
+                    :color     "red"
+                    :dashStyle "Dash"}
+                   {:name   "Train CA"
+                    :data   train-serie
+                    :color  "blue"
+                    :marker {:enabled true :symbol "square"}}
+                   {:name      "Test CA"
+                    :data      test-serie
+                    :color     "blue"
+                    :dashStyle "Dash"
+                    :marker    {:enabled true :symbol "square"}}]}))
 
-(defcomponent cost-chart [{solvings :solvings}]
+(defcomponent cost-chart [{:keys [solvings train-values test-values]}]
   (render [_]
-    (om/build widgets/highchart (costs-chart-config solvings))))
+    (om/build widgets/highchart (costs-chart-config solvings train-values test-values))))
 
-(defcomponent ca-chart [{solvings :solvings}]
+(defcomponent ca-chart [{:keys [solvings train-values test-values]}]
   (render [_]
-    (om/build widgets/highchart (ca-chart-config solvings))))
+    (om/build widgets/highchart (ca-chart-config solvings train-values test-values))))
 
-(defcomponent stats-panel [{:keys [progress solvings settings]}]
+(defcomponent stats-panel [{:keys [progress solvings metrics]}]
   (render [_]
-    (let [ca-enabled? (= (:mode (:mutation-opts settings)) :asols.commands/classification)]
+    (let [[train-cost-serie test-cost-serie train-ca-serie test-ca-serie] metrics]
       (html
        [:.panel.panel-success
         [:.panel-heading "Stats"]
@@ -83,9 +122,11 @@
 
          [:.row
           [:.col-md-12
-           (om/build cost-chart {:solvings solvings})]]
-
+           (om/build cost-chart {:solvings solvings
+                                 :train-values train-cost-serie
+                                 :test-values test-cost-serie})]]
          [:.row
-          (when ca-enabled?
-            [:.col-md-12
-             (om/build ca-chart {:solvings solvings})])]]]))))
+          [:.col-md-12
+           (om/build ca-chart {:solvings solvings
+                               :train-values train-ca-serie
+                               :test-values test-ca-serie})]]]]))))
