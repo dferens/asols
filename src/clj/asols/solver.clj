@@ -36,10 +36,9 @@
 (defn- get-dataset [solver]
   (data/datasets (:dataset (:mutation-opts solver))))
 
-
 (defn- get-train-entries [solver]
   (-> (:train (get-dataset solver))
-      (data/split-proportion 2/3)
+      (data/split-proportion (:train-frac (:mutation-opts solver)))
       (first)))
 
 (defn- get-validation-entries [solver]

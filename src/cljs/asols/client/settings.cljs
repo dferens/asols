@@ -84,6 +84,11 @@
             [:.col-sm-6 (widgets/input settings [:mutation-opts :max-combined-count] parse-int)]]
 
            [:.form-group
+            [:.col-xs-9 [:label.control-label "Amount of train dataset used for training"]]
+            [:.col-xs-3
+             (widgets/input settings [:mutation-opts :train-frac] parse-float)]]
+
+           [:.form-group
             [:.col-xs-6
              (om/build widgets/checkbox {:cursor settings :path [:mutation-opts :add-nodes?]
                                          :label "Add nodes?"})]
