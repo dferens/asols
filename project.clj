@@ -16,6 +16,7 @@
                  [compojure "1.3.1"]
                  [dorothy "0.0.6"]
                  [figwheel "0.2.6"]
+                 [incanter "1.5.6"]
                  [jarohen/chord "0.6.0"]
                  [prismatic/om-tools "0.3.11"]
                  [ring/ring-core "1.3.2"]
