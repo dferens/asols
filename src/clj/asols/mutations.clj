@@ -19,7 +19,17 @@
 
 (defmethod mutate ::combined
   [net {:keys [mutations]}]
-  (reduce mutate net mutations))
+  (let [m-type #(case (:operation %)
+                 ::add-node :add-node
+                 ::del-node :del-node
+                 ::add-layer :layer
+                 :safe)
+        {add-node-ms :add-node del-node-ms :del-node
+         layer-ms :layer safe-ms :safe} (group-by m-type mutations)
+        sorted-del-node-ms (sort-by #(- (second (:deleted-node %))) del-node-ms)
+        sorted-layer-ms (sort-by #(- (:layer-pos %)) layer-ms)
+        correct-ms (concat safe-ms add-node-ms sorted-del-node-ms sorted-layer-ms)]
+    (reduce mutate net correct-ms)))
 
 (defn identity-mutations [_]
   [{:operation ::identity}])
