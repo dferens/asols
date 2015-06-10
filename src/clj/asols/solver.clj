@@ -37,12 +37,15 @@
   (data/datasets (:dataset (:mutation-opts solver))))
 
 (defn- get-train-entries [solver]
-  (-> (:train (get-dataset solver))
-      (data/split-proportion (:train-frac (:mutation-opts solver)))
-      (first)))
+  (-> (:train (get-dataset solver))))
 
-(defn- get-validation-entries [solver]
-  (:train (get-dataset solver)))
+(defn- get-rand-train-entries [solver]
+  (let [train-entries (-> (get-train-entries solver)
+                          (shuffle)
+                          (data/split-proportion (:train-frac (:mutation-opts solver)))
+                          (first))
+        validation-entries (get-train-entries solver)]
+    [train-entries validation-entries]))
 
 (defn get-test-entries
   [solver]
@@ -70,21 +73,21 @@
 
 (defn- calc-metrics
   "Returns vector of train cost, test cost, train ca and test ca."
-  [solver net]
-  (let [validation-e (get-validation-entries solver)
-        test-entries (get-test-entries solver)]
-    [(trainer/calc-cost net validation-e)
-     (trainer/calc-cost net test-entries)
-     (trainer/calc-ca net validation-e)
-     (trainer/calc-ca net test-entries)]))
+  [net validation-entries test-entries]
+  [(trainer/calc-cost net validation-entries)
+   (trainer/calc-cost net test-entries)
+   (trainer/calc-ca net validation-entries)
+   (trainer/calc-ca net test-entries)])
 
 (defn solve-mutation
   "Most important fn here.
   Tests given mutation"
-  [{:keys [train-opts] :as solver} prev-net mutation]
+  [{t-opts :train-opts :as solver} prev-net mutation]
   (let [mutated-net (m/mutate prev-net mutation)
-        trained-net (trainer/train mutated-net (get-train-entries solver) train-opts)
-        [train-cost test-cost train-ca test-ca] (calc-metrics solver trained-net)]
+        [train-e validation-e] (get-rand-train-entries solver)
+        trained-net (trainer/train mutated-net train-e t-opts)
+        metrics (calc-metrics trained-net validation-e (get-test-entries solver))
+        [train-cost test-cost train-ca test-ca] metrics]
     (commands/->SolvingCase
       trained-net mutation
       train-cost test-cost
@@ -139,8 +142,7 @@
     (let [mutations (get-mutations solver net)
           progress-chan (make-progress-chan out-chan (count mutations))
           [cases ms-took] (solve-mutations solver net mutations tpool progress-chan)
-          all-cases (concat cases (make-combined-cases solver net cases))
-          [best-case & other-cases] (sort-cases all-cases)]
+          [best-case & other-cases] (sort-cases (make-combined-cases solver net cases))]
       (make-solving solver net best-case other-cases ms-took))
     (catch InterruptedException _
       (debug "Detected thread interrupt"))))
@@ -159,10 +161,9 @@
 (defn create-initial-solving [solver]
   (let [net (create-start-net solver)
         train-opts (get-initial-train-opts solver)
-        trained-net (trainer/train net (get-train-entries solver) train-opts)
+        initial-solver (assoc solver :train-opts train-opts)
         mutation (first (m/identity-mutations net))
-        [train-cost test-cost train-ca test-ca] (calc-metrics solver trained-net)
-        case (commands/->SolvingCase trained-net mutation train-cost test-cost train-ca test-ca)]
+        case (solve-mutation initial-solver net mutation)]
     (commands/->Solving net
                         train-opts
                         (:mutation-opts solver)
@@ -173,8 +174,9 @@
 (defn- calc-static-metrics
   [solver net iter-count]
   (let [train-e (get-train-entries solver)
+        test-e (get-test-entries solver)
         train-opts (assoc (:train-opts solver) :iter-count iter-count)
-        [_ results] (trainer/train net train-e train-opts #(calc-metrics solver %))]
+        [_ results] (trainer/train net train-e train-opts #(calc-metrics % train-e test-e))]
     (for [metrics-serie (transpose results)]
       (into {} (for [[i val] (map-indexed vector metrics-serie)]
                  [(inc i) val])))))
