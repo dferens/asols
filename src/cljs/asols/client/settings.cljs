@@ -16,29 +16,29 @@
        [:.panel-heading "Settings"]
        [:.panel-body
         [:.row
-         [:.col-sm-6
+         [:.col-sm-5
           [:form.form-horizontal
            [:.form-group
-            [:label.control-label.col-sm-4 "Learning rate"]
-            [:.col-sm-8 (widgets/input settings [:train-opts :learning-rate] parse-float)]]
+            [:label.control-label.col-sm-8 "Learning rate"]
+            [:.col-sm-4 (widgets/input settings [:train-opts :learning-rate] parse-float)]]
            [:.form-group
-            [:label.control-label.col-sm-4 "Momentum"]
-            [:.col-sm-8 (widgets/input settings [:train-opts :momentum] parse-float)]]
+            [:label.control-label.col-sm-8 "Momentum"]
+            [:.col-sm-4 (widgets/input settings [:train-opts :momentum] parse-float)]]
            [:.form-group
-            [:label.control-label.col-sm-4 "L2 lambda"]
-            [:.col-sm-8 (widgets/input settings [:train-opts :l2-lambda] parse-float)]]
+            [:label.control-label.col-sm-8 "L2 lambda"]
+            [:.col-sm-4 (widgets/input settings [:train-opts :l2-lambda] parse-float)]]
            [:.form-group
-            [:label.control-label.col-sm-4 "Iterations"]
-            [:.col-sm-8 (widgets/input settings [:train-opts :iter-count] parse-int)]]
+            [:label.control-label.col-sm-8 "Iterations"]
+            [:.col-sm-4 (widgets/input settings [:train-opts :iter-count] parse-int)]]
            [:.form-group
-            [:label.control-label.col-sm-4 "Pretrain iter count"]
-            [:.col-sm-8 (widgets/input settings [:mutation-opts :initial-iter-count] parse-int)]]
+            [:label.control-label.col-sm-8 "Pretrain iter count"]
+            [:.col-sm-4 (widgets/input settings [:mutation-opts :initial-iter-count] parse-int)]]
            [:.form-group
-            [:label.control-label.col-sm-4 "Input node prob."]
-            [:.col-sm-8 (widgets/input settings [:train-opts :in-node-prob] parse-float)]]
+            [:label.control-label.col-sm-8 "Input node prob."]
+            [:.col-sm-4 (widgets/input settings [:train-opts :in-node-prob] parse-float)]]
            [:.form-group
-            [:label.control-label.col-sm-4 "Hidden node prob."]
-            [:.col-sm-8 (widgets/input settings [:train-opts :hidden-node-prob] parse-float)]]
+            [:label.control-label.col-sm-8 "Hidden node prob."]
+            [:.col-sm-4 (widgets/input settings [:train-opts :hidden-node-prob] parse-float)]]
            [:.form-group
             [:.col-sm-8.col-sm-offset-4
              (if running?
@@ -48,7 +48,7 @@
                [:button.btn.btn-block.btn-primary
                 {:type "button" :on-click #(go (>! start-chan true))}
                 "Start"])]]]]
-         [:.col-sm-6
+         [:.col-sm-7
           [:form.form-horizontal
            [:.form-group
             [:.col-sm-4
