@@ -69,11 +69,11 @@
 
 (defmethod forward ::relu
   [_ in-vec]
-  (m/emap (partial max 0) in-vec))
+  (m/emap #(if (pos? %) % 0.0) in-vec))
 
 (defmethod derivative ::relu
   [_ out-vec]
-  (m/emap #(if (pos? %) 1 0) out-vec))
+  (m/emap #(if (pos? %) 1.0 0.0) out-vec))
 
 ;; Softmax output layer with log-likehood loss
 
@@ -184,10 +184,12 @@
 
   Params:
    - deltas-vec - vector of deltas (errors) of current layer"
-  [t-opts deltas-vec]
-  (m/mul -1
-         (:learning-rate t-opts)
-         deltas-vec))
+  [e-count t-opts layer deltas-vec prev-delta-b]
+  (let [{:keys [learning-rate momentum l2-lambda]} t-opts]
+    (-> (m/mul -1 learning-rate deltas-vec)
+        (m/add! (m/mul momentum prev-delta-b))
+        (m/sub! (m/mul (:biases layer)
+                       l2-lambda learning-rate (/ 1 e-count))))))
 
 (defn get-initial-delta-w
   "Returns collection of matrixes of initial delta weights of layers"
@@ -196,12 +198,18 @@
         :let [[in-count out-count] (net/get-layer-shape layer)]]
     (m/zero-matrix in-count out-count)))
 
+(defn get-initial-delta-b
+  [net]
+  (for [layer (:layers net)
+        :let [[_ out-count] (net/get-layer-shape layer)]]
+    (m/zero-vector out-count)))
+
 (defn backprop-step-delta
   "Performs forward & backward passes of single data entry.
   Returns vector of [delta-weights delta-biases cost-val] where:
     delta-weights - coll of matrixes of weights deltas for each layer
     delta-biases - coll of vectors of biases deltas for each layer"
-  [net entry e-count t-opts prev-delta-w]
+  [net entry e-count t-opts prev-delta-w prev-delta-b]
   (let [{:keys [input-vec target-vec]} entry
         {:keys [in-node-prob hidden-node-prob]} t-opts
         forward-vecs (forward-pass net input-vec in-node-prob hidden-node-prob)
@@ -212,29 +220,31 @@
        deltas-vecs
        forward-vecs
        prev-delta-w)
-
      (map
-       #(backprop-delta-layer-biases t-opts %1)
-       deltas-vecs)]))
+       #(backprop-delta-layer-biases e-count t-opts %1 %2 %3)
+       (:layers net)
+       deltas-vecs
+       prev-delta-b)]))
 
 (defn backprop-step
   "Performs forward & backward pass, tunes network weights & biases.
   Returns new network and weights deltas."
-  [net entry e-count t-opts prev-delta-w]
-  (let [results (backprop-step-delta net entry e-count t-opts prev-delta-w)
+  [net entry e-count t-opts prev-delta-w prev-delta-b]
+  (let [results (backprop-step-delta net entry e-count t-opts prev-delta-w prev-delta-b)
         [delta-weights delta-biases] results
         new-layers (map
                      (fn [{:keys [edges-matrix edges-mask biases] :as layer} delta-w delta-b]
                        (let [delta-w (m/mul delta-w edges-mask)
                              new-edges-matrix (m/add delta-w edges-matrix)
-                             new-biases (m/add! delta-b biases)]
+                             new-biases (m/add delta-b biases)]
                          (assoc layer :edges-matrix new-edges-matrix
                                       :biases new-biases)))
                      (:layers net)
                      delta-weights
                      delta-biases)]
     [(assoc net :layers (vec new-layers))
-     delta-weights]))
+     delta-weights
+     delta-biases]))
 
 (defn calc-cost
   "Performs forward pass, calculates cost of out layer for each entry.
@@ -254,15 +264,14 @@
   (let [e-count (count entries)]
     (loop [curr-net start-net
            entry-i 0
-           curr-delta-w (get-initial-delta-w curr-net)]
+           curr-delta-w (get-initial-delta-w curr-net)
+           curr-delta-b (get-initial-delta-b curr-net)]
       (if (>= entry-i e-count)
         curr-net
         (let [entry (nth entries entry-i)
-              step-result (backprop-step curr-net entry e-count t-opts curr-delta-w)
-              [new-net new-delta-w] step-result]
-          (recur new-net
-                 (inc entry-i)
-                 new-delta-w))))))
+              step-result (backprop-step curr-net entry e-count t-opts curr-delta-w curr-delta-b)
+              [new-net new-delta-w new-delta-b] step-result]
+          (recur new-net (inc entry-i) new-delta-w new-delta-b))))))
 
 (defn train
   "Trains given network on a dataset during multiple epochs.
