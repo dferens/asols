@@ -68,7 +68,12 @@
     (when (:add-edges? m-opts) (m/add-edge-mutations net))
     (when (:add-nodes? m-opts) (m/add-node-mutations net))
     (when (:remove-nodes? m-opts) (m/del-node-mutations net))
-    (when (:remove-edges? m-opts) (m/del-edge-mutations net))
+    (when (:remove-edges? m-opts)
+      (let [ms (m/del-edge-mutations net)
+            frac (:del-edges-frac m-opts)]
+        (if (= 1.0 (double frac))
+          ms
+          (first (data/split-proportion (shuffle ms) frac)))))
     (when (:add-layers? m-opts) (m/add-layers-mutations net))))
 
 (defn- calc-metrics

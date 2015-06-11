@@ -23,7 +23,7 @@
                          hidden-type hidden-count
                          out-type
                          max-combined-count
-                         train-frac
+                         train-frac del-edges-frac
                          add-nodes? add-edges?
                          remove-nodes? remove-edges?
                          add-layers?])
@@ -33,13 +33,14 @@
              hidden-type hidden-count
              out-type
              max-combined-count
-             train-frac
+             train-frac del-edges-frac
              add-nodes? add-edges? add-layers?
              remove-edges? remove-nodes?]
       :or {initial-iter-count 300
            hidden-count 1
            max-combined-count 10
            train-frac 1
+           del-edges-frac 1
            add-nodes? true
            add-edges? true
            remove-edges? true
@@ -49,7 +50,7 @@
                   hidden-type hidden-count
                   out-type
                   max-combined-count
-                  train-frac
+                  train-frac del-edges-frac
                   add-nodes? add-edges?
                   remove-edges? remove-nodes?
                   add-layers?))

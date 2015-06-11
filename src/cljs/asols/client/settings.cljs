@@ -89,6 +89,11 @@
              (widgets/input settings [:mutation-opts :train-frac] parse-float)]]
 
            [:.form-group
+            [:.col-xs-9 [:label.control-label "Amount of random chosen del-edge mutations"]]
+            [:.col-xs-3
+             (widgets/input settings [:mutation-opts :del-edges-frac] parse-float)]]
+
+           [:.form-group
             [:.col-xs-6
              (om/build widgets/checkbox {:cursor settings :path [:mutation-opts :add-nodes?]
                                          :label "Add nodes?"})]
