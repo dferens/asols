@@ -111,7 +111,9 @@
   [{m-opts :mutation-opts :as solver} net cases]
   (let [selected-cases (->> cases
                             (sort-cases)
-                            (take-while #(not= ::m/identity (:operation (:mutation %))))
+                            (reverse)
+                            (drop-while #(not= ::m/identity (:operation (:mutation %))))
+                            (reverse)
                             (take (:max-combined-count m-opts)))]
     (for [select-count (range 2 (inc (count selected-cases)))
           :let [merge-cases (take select-count selected-cases)
@@ -142,7 +144,10 @@
     (let [mutations (get-mutations solver net)
           progress-chan (make-progress-chan out-chan (count mutations))
           [cases ms-took] (solve-mutations solver net mutations tpool progress-chan)
-          [best-case & other-cases] (sort-cases (make-combined-cases solver net cases))]
+          combined-cases (make-combined-cases solver net cases)
+          [best-case & other-cases] (if (empty? combined-cases)
+                                      (filter #(= ::m/identity (:operation (:mutation %))) cases)
+                                      (sort-cases combined-cases))]
       (make-solving solver net best-case other-cases ms-took))
     (catch InterruptedException _
       (debug "Detected thread interrupt"))))
