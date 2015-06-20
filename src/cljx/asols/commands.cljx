@@ -24,6 +24,7 @@
                          out-type
                          max-combined-count
                          train-frac del-edges-frac
+                         stop-on-increase?
                          add-nodes? add-edges?
                          remove-nodes? remove-edges?
                          add-layers?])
@@ -34,6 +35,7 @@
              out-type
              max-combined-count
              train-frac del-edges-frac
+             stop-on-increase?
              add-nodes? add-edges? add-layers?
              remove-edges? remove-nodes?]
       :or {initial-iter-count 300
@@ -41,6 +43,7 @@
            max-combined-count 10
            train-frac 1
            del-edges-frac 1
+           stop-on-increase? true
            add-nodes? true
            add-edges? true
            remove-edges? true
@@ -51,6 +54,7 @@
                   out-type
                   max-combined-count
                   train-frac del-edges-frac
+                  stop-on-increase?
                   add-nodes? add-edges?
                   remove-edges? remove-nodes?
                   add-layers?))

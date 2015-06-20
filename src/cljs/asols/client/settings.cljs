@@ -94,6 +94,10 @@
              (widgets/input settings [:mutation-opts :del-edges-frac] parse-float)]]
 
            [:.form-group
+            [:.col-xs-12 (om/build widgets/checkbox {:cursor settings :path [:mutation-opts :stop-on-increase?]
+                                                    :label "Stop on cost increase?"})]]
+
+           [:.form-group
             [:.col-xs-6
              (om/build widgets/checkbox {:cursor settings :path [:mutation-opts :add-nodes?]
                                          :label "Add nodes?"})]

@@ -194,6 +194,7 @@
 (defn solver-loop
   [solver out-chan abort-chan]
   (let [initial-solving (create-initial-solving solver)
+        {m-opts :mutation-opts} solver
         initial-static-net (:net (:best-case initial-solving))]
     (cpool/with-shutdown!
       [tpool (cpool/threadpool (cpool/ncpus))]
@@ -206,10 +207,14 @@
             (let [new-solving val
                   better? (< (:train-cost (:best-case new-solving))
                              (:train-cost (:best-case current-solving)))
+                  stop? (and (not better?)
+                             (:stop-on-increase? m-opts))
                   best? (converged? solver new-solving)
                   new-iter-count (+ iter-count (:iter-count (:train-opts new-solving)))
                   metrics (calc-static-metrics solver initial-static-net new-iter-count)]
-              (if better?
+              (if stop?
+                (when (>!! out-chan (commands/finished new-solving))
+                  (debug "Finished, could not find better solution"))
                 (do
                   (>!! out-chan (commands/step new-solving metrics))
                   (debug "Sent step")
@@ -217,9 +222,7 @@
                     (when (>!! out-chan (commands/finished))
                       (debug "Finished, found best solution"))
                     (recur new-solving
-                           new-iter-count)))
-                (when (>!! out-chan (commands/finished new-solving))
-                  (debug "Finished, could not find better solution"))))))))))
+                           new-iter-count)))))))))))
 
 (defn init [in-chan out-chan]
   (let [abort-chan (chan)

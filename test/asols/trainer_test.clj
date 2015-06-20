@@ -26,7 +26,8 @@
                :target-vec (array [1 1])}
         t-opts (train-opts )
         initial-delta-w (get-initial-delta-w net)
-        results (backprop-step-delta net entry 1 t-opts initial-delta-w)
+        initial-delta-b (get-initial-delta-b net)
+        results (backprop-step-delta net entry 1 t-opts initial-delta-w initial-delta-b)
         [delta-weights delta-biases] results]
     (is (= [[2 2] [2 2]]
            (mapv m/shape delta-weights)))
