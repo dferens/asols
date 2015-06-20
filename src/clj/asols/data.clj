@@ -1,7 +1,6 @@
 (ns asols.data
   (:require [clojure.java.io :as io]
             [clojure.data.csv :as csv]
-            [clojure.string :as str]
             [clojure.core.matrix :as matrix :refer [array]]))
 
 (matrix/set-current-implementation :vectorz)
@@ -16,7 +15,7 @@
   (->Entry (array input-vec) (array target-vec)))
 
 (defn- read-dataset [file-name]
-  (let [full-path (io/file "resources" "datasets" file-name)
+  (let [full-path (io/resource (str "datasets/" file-name))
         reader (io/reader full-path)]
     (->> (csv/read-csv reader :separator \tab)
          (drop 3))))
@@ -93,50 +92,6 @@
                          (class-vec (Integer/parseInt class) 2)))
         [train-entries test-entries] [entries entries]]
     (->Dataset train-entries test-entries 2 2)))
-
-(defn- parse-fer2013-dataset
-  "Facial Expression Recognition Challenge
-
-  The data consists of 48x48 pixel grayscale images of faces. The faces have
-  been automatically registered so that the face is more or less centered and
-  occupies about the same amount of space in each image.
-
-  Input vector:
-    48 * 48 vector of [0 255] doubles
-
-  Output vector:
-    1. emotion, one of:
-      0 - Angry
-      1 - Disgust
-      2 - Fear
-      3 - Happy
-      4 - Sad
-      5 - Surprise
-      6 - Neutral
-  "
-  []
-  (let [file-path (io/file "resources" "datasets" "fer2013.csv")
-        reader (io/reader file-path)
-        lines (for [[emotion-str pixels set-name] (rest (csv/read-csv reader))]
-                [(Integer/parseInt emotion-str)
-                 (map #(double
-                        (/ (Integer/parseInt %)
-                           255))
-                      (str/split pixels #" "))
-                 (case set-name
-                   "Training" :train
-                   "PublicTest" :test)])
-        line->entry (fn [[emotion pixels _]]
-                      (entry (array pixels) (class-vec emotion 7 0)))
-        train-entries (->> lines
-                           (filter (fn [[_ _ set]] (= set :train)))
-                           (take 5000)
-                           (map line->entry))
-        test-entries (->> lines
-                          (filter (fn [[_ _ set]] (= set :test)))
-                          (take 100)
-                          (map line->entry))]
-    (->Dataset (vec train-entries) (vec test-entries) (* 48 48) 7)))
 
 (defn get-yale-entries
   [file]

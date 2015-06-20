@@ -31,6 +31,7 @@
   :main ^:skip-aot asols.core
   :target-path "target/%s"
   :source-paths ["target/generated/src/clj" "src/clj"]
+  :resource-paths ["resources/"]
   :prep-tasks [["cljx" "once"] "javac" "compile"]
 
   :profiles {:dev {:plugins [[lein-cljsbuild "1.0.4"]

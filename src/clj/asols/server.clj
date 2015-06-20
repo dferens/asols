@@ -1,5 +1,6 @@
 (ns asols.server
   (:require [chord.http-kit :refer [with-channel]]
+            [clojure.java.io :as io]
             [clojure.core.async :refer [<! >! chan close! go go-loop]]
             [clojure.edn :as edn]
             [compojure.core :refer [defroutes GET POST]]
@@ -27,7 +28,8 @@
    'asols.commands.MutationOpts cmd/map->MutationOpts})
 
 (defn index [req]
-  (-> (slurp "resources/public/templates/index.html")
+  (-> (io/resource "public/templates/index.html")
+      (slurp)
       (resp/response)
       (resp/header "Content-Type" "text/html; charset=utf-8")))
 
@@ -44,7 +46,7 @@
 (defn ws-handler [req]
   (with-channel
     req chord-chan
-    {:format :edn #_:transit-json
+    {:format :edn
      :write-ch (chan 10)
      :read-ch (chan 10)}
     (debug "Client connected")
