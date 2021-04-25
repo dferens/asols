@@ -4,7 +4,7 @@ Algorithm of Structure Optimization on Learning Stage
 
 ## Installation
 
-FIXME
+Download Yale cropped images dataset from: http://vision.ucsd.edu/~leekc/ExtYaleDatabase/ExtYaleB.html
 
 ## Development
 
